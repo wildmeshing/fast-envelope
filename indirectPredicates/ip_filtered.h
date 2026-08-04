@@ -17,9 +17,12 @@
 //     them non-copyable; FastEnvelope only ever passes them by reference and never reads
 //     their members, so the change is invisible to it.
 //
-//   - The filtered / exact split collapses. Indirect_Predicates escalates internally, so
-//     `_postfilter` and `_post_exact` are the same call; the former can no longer return
-//     UNCERTAIN, which only makes its callers' exact fallbacks dead code rather than wrong.
+//   - The filtered / exact split is preserved, and it matters. `_postfilter` runs only the
+//     interval stage and returns UNCERTAIN (0) when it cannot decide, exactly as before;
+//     `_post_exact` runs the full cascade. Routing both through genericPoint::orient3D
+//     instead is correct but escalates to bigfloat on every call, and FastEnvelope calls
+//     the postfilter in its innermost loops -- measured at more than 8x the whole
+//     integration suite's runtime before it was interrupted.
 //
 //   - POSITIVE / NEGATIVE / UNCERTAIN are no longer declared here. Indirect_Predicates
 //     ships them as a global `IP_Sign` / `Filtered_Sign` with the same values (1, -1, 0),
@@ -163,8 +166,12 @@ inline int orient3D_LPI_postfilter(
     const double& bx, const double& by, const double& bz,
     const double& cx, const double& cy, const double& cz)
 {
-    const explicitPoint3D a(ax, ay, az), b(bx, by, bz), c(cx, cy, cz);
-    return genericPoint::orient3D(*s.point, a, b, c);
+    // Interval stage only: returns 0 (UNCERTAIN) when it cannot decide and leaves the
+    // caller to escalate, which is the contract this function has always had. It restores
+    // the rounding mode itself on every exit path, and its INT_MAX overflow return is
+    // guarded by `if constexpr (is_same<expansion, T>)`, so 0 is the only undecided value.
+    return orient3d_indirect_IEEE_t<interval_number, interval_number>(
+        *s.point, ax, ay, az, bx, by, bz, cx, cy, cz);
 }
 
 inline bool orient3D_TPI_prefilter(
@@ -190,8 +197,9 @@ inline int orient3D_TPI_postfilter(
     const double& q2x, const double& q2y, const double& q2z,
     const double& q3x, const double& q3y, const double& q3z)
 {
-    const explicitPoint3D q1(q1x, q1y, q1z), q2(q2x, q2y, q2z), q3(q3x, q3y, q3z);
-    return genericPoint::orient3D(*s.point, q1, q2, q3);
+    // Interval stage only -- see orient3D_LPI_postfilter.
+    return orient3d_indirect_IEEE_t<interval_number, interval_number>(
+        *s.point, q1x, q1y, q1z, q2x, q2y, q2z, q3x, q3y, q3z);
 }
 
 // Exact variants. Indirect_Predicates escalates to exact arithmetic by itself, so these
@@ -211,12 +219,13 @@ inline bool orient3D_LPI_pre_exact(
 
 inline int orient3D_LPI_post_exact(
     LPI_exact_suppvars& s,
-    double px, double py, double pz,
+    double, double, double,
     double ax, double ay, double az,
     double bx, double by, double bz,
     double cx, double cy, double cz)
 {
-    return orient3D_LPI_postfilter(s, px, py, pz, ax, ay, az, bx, by, bz, cx, cy, cz);
+    const explicitPoint3D a(ax, ay, az), b(bx, by, bz), c(cx, cy, cz);
+    return genericPoint::orient3D(*s.point, a, b, c);
 }
 
 inline bool orient3D_TPI_pre_exact(
@@ -239,7 +248,8 @@ inline int orient3D_TPI_post_exact(
     double q2x, double q2y, double q2z,
     double q3x, double q3y, double q3z)
 {
-    return orient3D_TPI_postfilter(s, q1x, q1y, q1z, q2x, q2y, q2z, q3x, q3y, q3z);
+    const explicitPoint3D q1(q1x, q1y, q1z), q2(q2x, q2y, q2z), q3(q3x, q3y, q3z);
+    return genericPoint::orient3D(*s.point, q1, q2, q3);
 }
 
 // ---------------------------------------------------------------------------
