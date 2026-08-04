@@ -248,6 +248,10 @@ set(INDIRECTPREDICATES_HEADERS
 )
 indirect_predicates_copy_headers(${INDIRECTPREDICATES_HEADERS})
 
+# ip_filtered_ex.cpp holds the projection/normal helpers. It used to be pulled in by
+# ip_filtered.cpp, which has been deleted, so compile it directly.
+target_sources(${PROJECT_NAME} PRIVATE indirectPredicates/ip_filtered_ex.cpp)
+
 if(FAST_ENVELOPE_WITH_TIMER)
 	target_compile_definitions(${PROJECT_NAME} PRIVATE FAST_ENVELOPE_USE_TIMER)
 endif()
