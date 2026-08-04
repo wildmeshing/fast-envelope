@@ -262,7 +262,6 @@ endif()
 
 # Sources
 add_subdirectory(src)
-target_sources(${PROJECT_NAME} PRIVATE indirectPredicates/ip_filtered.cpp)
 
 if(FAST_ENVELOPE_WITH_GMP)
 	find_package(GMP REQUIRED)
