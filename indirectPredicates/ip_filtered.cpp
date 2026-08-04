@@ -991,19 +991,19 @@ int orient3D_LPI_post_exact(
 	detl = o.Gen_Sum_With_PreAlloc(ss1l, ss1, s3l, s3, &det, detl); // det = ss1 + s3; // = s1 - s2 + s3;
 
 	if (s1 != s1p)
-		free(s1);
+		FreeDoubles(s1);
 	if (s2 != s2p)
-		free(s2);
+		FreeDoubles(s2);
 	if (s3 != s3p)
-		free(s3);
+		FreeDoubles(s3);
 	if (ss1 != ss1p)
-		free(ss1);
+		FreeDoubles(ss1);
 
 	double s = det[detl - 1];
 	double sd = d[dl - 1];
 
 	if (det != detp)
-		free(det);
+		FreeDoubles(det);
 
 	if ((s > 0))
 		return (sd > 0) ? (1) : (-1);
@@ -1120,13 +1120,13 @@ inline void o3dTPI_tf3(expansionObject &o, double *a, double *b, double *c, doub
 	gl = o.Gen_Sum_With_PreAlloc(tsl, ts, tr3l, tr3, g, gl); // g = ts + tr3;
 
 	if (tr1 != tr1p)
-		free(tr1);
+		FreeDoubles(tr1);
 	if (tr2 != tr2p)
-		free(tr2);
+		FreeDoubles(tr2);
 	if (tr3 != tr3p)
-		free(tr3);
+		FreeDoubles(tr3);
 	if (ts != tsp)
-		free(ts);
+		FreeDoubles(ts);
 }
 
 inline void o3dTPI_tf3s(expansionObject &o, double *a, double b, double *c, double d, double *e, double f,
@@ -1228,11 +1228,11 @@ int orient3D_TPI_post_exact(
 	a13l = o.Gen_Sum_With_PreAlloc(n3l, n3, dq3zl, dq3z, &a13, a13l); // a13 = n3 + dq3z;
 
 	if (dq3x != dq3xp)
-		free(dq3x);
+		FreeDoubles(dq3x);
 	if (dq3y != dq3yp)
-		free(dq3y);
+		FreeDoubles(dq3y);
 	if (dq3z != dq3zp)
-		free(dq3z);
+		FreeDoubles(dq3z);
 
 	o.two_Diff(q1x, q3x, a21); // a21 = q1x - q3x;
 	o.two_Diff(q1y, q3y, a22); // a22 = q1y - q3y;
@@ -1260,32 +1260,32 @@ int orient3D_TPI_post_exact(
 	ffl = o.Gen_Sum_With_PreAlloc(ee1l, ee1, ee2l, ee2, &ff, ffl);		  // ff = ee1 + ee2;
 	if (ee1 != ee1p)
 	{
-		free(ee1);
+		FreeDoubles(ee1);
 		ee1 = ee1p;
 	}
 	if (ee2 != ee2p)
-		free(ee2);
+		FreeDoubles(ee2);
 	ee1l = o.Gen_Product_With_PreAlloc(a12l, a12, dd2l, dd2, &ee1, ee1l); // ee1 = a12*dd2;
 
 	if (a11 != a11p)
-		free(a11);
+		FreeDoubles(a11);
 	if (a12 != a12p)
-		free(a12);
+		FreeDoubles(a12);
 	if (a13 != a13p)
-		free(a13);
+		FreeDoubles(a13);
 
 	o.Gen_Invert(ee1l, ee1);
 	detl = o.Gen_Sum_With_PreAlloc(ffl, ff, ee1l, ee1, &det, detl); // det = ff + ee1;
 	if (ee1 != ee1p)
-		free(ee1);
+		FreeDoubles(ee1);
 	if (ff != ffp)
-		free(ff);
+		FreeDoubles(ff);
 
 	double s = det[detl - 1];
 	double sd = d[dl - 1];
 
 	if (det != detp)
-		free(det);
+		FreeDoubles(det);
 
 	if ((s > 0))
 		return (sd > 0) ? (1) : (-1);
@@ -1313,13 +1313,13 @@ TPI_exact_suppvars::TPI_exact_suppvars()
 TPI_exact_suppvars::~TPI_exact_suppvars()
 {
 	if (dl > 256)
-		free(d);
+		FreeDoubles(d);
 	if (n1l > 256)
-		free(n1);
+		FreeDoubles(n1);
 	if (n2l > 256)
-		free(n2);
+		FreeDoubles(n2);
 	if (n3l > 256)
-		free(n3);
+		FreeDoubles(n3);
 }
 
 int orient3D_TPI_exact(
