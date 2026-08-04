@@ -79,7 +79,12 @@ public:
     }
 };
 
-using LPI_exact_suppvars = LPI_filtered_suppvars;
+// A distinct class rather than an alias: FastEnvelope.h forward-declares
+// `class TPI_exact_suppvars;`, which a typedef cannot satisfy. The exact and filtered
+// variants carry the same state now, so the derived class adds nothing but the name.
+class LPI_exact_suppvars : public LPI_filtered_suppvars
+{
+};
 
 class TPI_filtered_suppvars
 {
@@ -130,7 +135,9 @@ public:
     }
 };
 
-using TPI_exact_suppvars = TPI_filtered_suppvars;
+class TPI_exact_suppvars : public TPI_filtered_suppvars
+{
+};
 
 // ---------------------------------------------------------------------------
 // Two-stage interface: build the intersection point once, test it against many planes
