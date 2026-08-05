@@ -362,6 +362,17 @@ if(FAST_ENVELOPE_TOPLEVEL_PROJECT)
 		target_compile_features(${PROJECT_NAME}_test_boxcut PUBLIC ${CXX14_FEATURES})
 		enable_testing()
 		add_test(NAME box_cut_equivalence COMMAND ${PROJECT_NAME}_test_boxcut)
+
+		# Pins the sign convention of the indirect orientation predicates, which the
+		# prism-containment tests in FastEnvelope.cpp depend on and which
+		# Indirect_Predicates returns inverted.
+		# ${PROJECT_NAME} carries the copied indirectpredicates/ headers on its PUBLIC
+		# include path but links indirectPredicates itself PRIVATE, so the test needs that
+		# target too for <implicit_point.h> and the symbols behind it.
+		add_executable(${PROJECT_NAME}_test_orient_sign tests/orient_sign_convention.cpp)
+		target_link_libraries(${PROJECT_NAME}_test_orient_sign PUBLIC ${PROJECT_NAME} indirectPredicates)
+		target_compile_features(${PROJECT_NAME}_test_orient_sign PUBLIC ${CXX14_FEATURES})
+		add_test(NAME orient_sign_convention COMMAND ${PROJECT_NAME}_test_orient_sign)
 	endif()
 	###################################################################
 	#add_executable(${PROJECT_NAME}_bin app/main.cpp)

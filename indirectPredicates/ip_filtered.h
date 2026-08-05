@@ -32,6 +32,29 @@
 
 #include <optional>
 
+// Indirect_Predicates and this header disagree on the sign of orient3D, and FastEnvelope
+// depends on the one this header has always returned.
+//
+// `genericPoint::orient3D(p, a, b, c)` gives the signed volume of the tetrahedron
+// (p, a, b, c) in Indirect_Predicates' own vertex order, which works out to
+// -sign(det(p - a, b - a, c - a)): a point one unit above the plane z = 0, tested against
+// <(0,0,0), (1,0,0), (0,1,0)> -- whose (b-a) x (c-a) normal is +z -- comes back NEGATIVE.
+//
+// The predicates this file replaced returned the other sign: the height of the implicit
+// point over the oriented plane <a, b, c>, positive above and negative below. FastEnvelope
+// reads them that way. A point is inside a prism when it lies below all of that prism's
+// outward-oriented faces, which its callers spell as every face returning NEGATIVE -- see
+// the `tot == halfspace[prismindex[i]].size()` tests in FastEnvelope.cpp. Handing them the
+// opposite sign makes containment fail everywhere: every prism is skipped, every point
+// looks like it is outside, and the envelope silently grows far more conservative than
+// asked for.
+//
+// UNCERTAIN is 0, which negates to itself, so the filtered/exact split is unaffected.
+inline int ip_orient3D_to_height_sign(int orient3D_sign)
+{
+    return -orient3D_sign;
+}
+
 // ---------------------------------------------------------------------------
 // Support objects
 // ---------------------------------------------------------------------------
@@ -170,8 +193,8 @@ inline int orient3D_LPI_postfilter(
     // caller to escalate, which is the contract this function has always had. It restores
     // the rounding mode itself on every exit path, and its INT_MAX overflow return is
     // guarded by `if constexpr (is_same<expansion, T>)`, so 0 is the only undecided value.
-    return orient3d_indirect_IEEE_t<interval_number, interval_number>(
-        *s.point, ax, ay, az, bx, by, bz, cx, cy, cz);
+    return ip_orient3D_to_height_sign(orient3d_indirect_IEEE_t<interval_number, interval_number>(
+        *s.point, ax, ay, az, bx, by, bz, cx, cy, cz));
 }
 
 inline bool orient3D_TPI_prefilter(
@@ -198,8 +221,8 @@ inline int orient3D_TPI_postfilter(
     const double& q3x, const double& q3y, const double& q3z)
 {
     // Interval stage only -- see orient3D_LPI_postfilter.
-    return orient3d_indirect_IEEE_t<interval_number, interval_number>(
-        *s.point, q1x, q1y, q1z, q2x, q2y, q2z, q3x, q3y, q3z);
+    return ip_orient3D_to_height_sign(orient3d_indirect_IEEE_t<interval_number, interval_number>(
+        *s.point, q1x, q1y, q1z, q2x, q2y, q2z, q3x, q3y, q3z));
 }
 
 // Exact variants. Indirect_Predicates escalates to exact arithmetic by itself, so these
@@ -225,7 +248,7 @@ inline int orient3D_LPI_post_exact(
     double cx, double cy, double cz)
 {
     const explicitPoint3D a(ax, ay, az), b(bx, by, bz), c(cx, cy, cz);
-    return genericPoint::orient3D(*s.point, a, b, c);
+    return ip_orient3D_to_height_sign(genericPoint::orient3D(*s.point, a, b, c));
 }
 
 inline bool orient3D_TPI_pre_exact(
@@ -249,7 +272,7 @@ inline int orient3D_TPI_post_exact(
     double q3x, double q3y, double q3z)
 {
     const explicitPoint3D q1(q1x, q1y, q1z), q2(q2x, q2y, q2z), q3(q3x, q3y, q3z);
-    return genericPoint::orient3D(*s.point, q1, q2, q3);
+    return ip_orient3D_to_height_sign(genericPoint::orient3D(*s.point, q1, q2, q3));
 }
 
 // ---------------------------------------------------------------------------
