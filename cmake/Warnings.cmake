@@ -35,7 +35,16 @@ set(MY_FLAGS
 		-Werror=sequence-point
 		-Werror=return-type
 		-Werror=trigraphs
-		-Werror=array-bounds
+		# Keep the warning, but do not make it a hard error: on GCC it fires on code
+		# that cannot run. genericPoint::getIntervalLambda dispatches on the point type
+		# (isLPI() / isTPI() / ...), and GCC inlines every branch into the call site.
+		# When the caller holds an LPI support object on the stack -- as FastEnvelope's
+		# prism tests do -- it then measures the dead TPI branch's reads against that
+		# object's size and reports "array subscript 31 is outside array bounds of
+		# LPI_filtered_suppvars". The branch is unreachable for an LPI point, so the
+		# access never happens. wildmeshing-toolkit's own warning set drops the same
+		# flag for the same reason (GCC 13 vs vectorized Eigen).
+		-Wno-error=array-bounds
 		-Werror=write-strings
 		-Werror=address
 		-Werror=int-to-pointer-cast
