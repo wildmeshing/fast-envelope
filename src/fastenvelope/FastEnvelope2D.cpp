@@ -106,6 +106,12 @@ FastEnvelope2D::make_edge_envelope(const Vector2& point0, const Vector2& point1,
         envelope.bounds[0] = envelope.bounds[0].cwiseMin(corners[i]);
         envelope.bounds[1] = envelope.bounds[1].cwiseMax(corners[i]);
     }
+    for (int dimension = 0; dimension < 2; ++dimension) {
+        envelope.bounds[0][dimension] =
+            std::nextafter(envelope.bounds[0][dimension], -std::numeric_limits<Scalar>::infinity());
+        envelope.bounds[1][dimension] =
+            std::nextafter(envelope.bounds[1][dimension], std::numeric_limits<Scalar>::infinity());
+    }
     return envelope;
 }
 
