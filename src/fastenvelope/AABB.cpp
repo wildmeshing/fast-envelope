@@ -5,7 +5,6 @@
 #include <cassert>
 
 namespace fastEnvelope {
-
 void AABB::init_envelope_boxes_recursive(
     const std::vector<std::array<Vector3, 2>>& cornerlist,
     int node_index,
@@ -137,6 +136,28 @@ void AABB::segment_search_bbd_recursive(
     segment_search_bbd_recursive(seg0, seg1, list, childr, m, e);
 }
 
+void AABB::segment_2d_search_bbd_recursive(
+    const Vector2& seg0,
+    const Vector2& seg1,
+    std::vector<unsigned int>& list,
+    int n,
+    int b,
+    int e) const
+{
+    assert(e != b);
+    assert(n < boxlist.size());
+    if (!is_segment_cut_bounding_box(seg0, seg1, n)) return;
+
+    if (e == b + 1) {
+        list.emplace_back(b);
+        return;
+    }
+
+    const int m = b + (e - b) / 2;
+    segment_2d_search_bbd_recursive(seg0, seg1, list, 2 * n, b, m);
+    segment_2d_search_bbd_recursive(seg0, seg1, list, 2 * n + 1, m, e);
+}
+
 void AABB::bbd_searching_recursive(
     const Vector3& bbd0,
     const Vector3& bbd1,
@@ -255,6 +276,30 @@ bool AABB::is_segment_cut_bounding_box(const Vector3& seg0, const Vector3& seg1,
     if (max[0] < bmin[0] || max[1] < bmin[1] || max[2] < bmin[2]) return false;
     if (min[0] > bmax[0] || min[1] > bmax[1] || min[2] > bmax[2]) return false;
     return true;
+}
+
+bool AABB::is_segment_cut_bounding_box(const Vector2& seg0, const Vector2& seg1, int index) const
+{
+    const Vector3& bmin = boxlist[index][0];
+    const Vector3& bmax = boxlist[index][1];
+    if (std::max(seg0[0], seg1[0]) < bmin[0] || std::min(seg0[0], seg1[0]) > bmax[0] ||
+        std::max(seg0[1], seg1[1]) < bmin[1] || std::min(seg0[1], seg1[1]) > bmax[1])
+        return false;
+
+    std::array<Vector2, 4> corners;
+    corners[0] = Vector2(bmin[0], bmin[1]);
+    corners[1] = Vector2(bmax[0], bmin[1]);
+    corners[2] = Vector2(bmax[0], bmax[1]);
+    corners[3] = Vector2(bmin[0], bmax[1]);
+
+    bool all_positive = true;
+    bool all_negative = true;
+    for (const Vector2& corner : corners) {
+        const int side = algorithms::orient_2d(seg0, seg1, corner);
+        all_positive = all_positive && side > 0;
+        all_negative = all_negative && side < 0;
+    }
+    return !all_positive && !all_negative;
 }
 bool AABB::is_bbd_cut_bounding_box(const Vector3& bbd0, const Vector3& bbd1, int index) const
 {

@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <limits>
 #include <vector>
 
 namespace fastEnvelope {
@@ -157,10 +158,7 @@ bool FastEnvelope2D::is_outside(const Vector2& point0, const Vector2& point1) co
     if (envelopes_.empty()) return true;
 
     std::vector<unsigned int> candidates;
-    tree_.bbox_find_bbox(
-        lift_to_3d(point0.cwiseMin(point1)),
-        lift_to_3d(point0.cwiseMax(point1)),
-        candidates);
+    tree_.segment_find_bbox(point0, point1, candidates);
 
     // Every box containing the first endpoint is initially reachable. Reaching
     // any box containing the second endpoint proves continuous union coverage.

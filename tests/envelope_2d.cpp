@@ -273,3 +273,31 @@ TEST_CASE("2D queries handle every collinear boundary configuration", "[envelope
         CHECK(envelope.is_outside(Vector2(2, 1), Vector2(3, 1)));
     }
 }
+
+TEST_CASE(
+    "2D AABB queries filter with the segment instead of its bounding box",
+    "[envelope-2d][aabb]")
+{
+    std::vector<std::array<Vector3, 2>> boxes(4);
+    boxes[0][0] = Vector3(0, 0, 0);
+    boxes[0][1] = Vector3(1, 1, 0);
+    boxes[1][0] = Vector3(0, 2, 0);
+    boxes[1][1] = Vector3(1, 3, 0);
+    boxes[2][0] = Vector3(2, 0, 0);
+    boxes[2][1] = Vector3(3, 1, 0);
+    boxes[3][0] = Vector3(2, 2, 0);
+    boxes[3][1] = Vector3(3, 3, 0);
+
+    AABB tree;
+    tree.init(boxes);
+    const auto find = [&](const Vector2& point0, const Vector2& point1) {
+        std::vector<unsigned int> candidates;
+        tree.segment_find_bbox(point0, point1, candidates);
+        return candidates;
+    };
+
+    CHECK(find(Vector2(-1, -1), Vector2(4, 4)) == std::vector<unsigned int>{0, 3});
+    CHECK(find(Vector2(4, 4), Vector2(-1, -1)) == std::vector<unsigned int>{0, 3});
+    CHECK(find(Vector2(-1, 1), Vector2(1.5, 1)) == std::vector<unsigned int>{0});
+    CHECK(find(Vector2(-1, 1), Vector2(0, 0)) == std::vector<unsigned int>{0});
+}
