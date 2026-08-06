@@ -1,0 +1,209 @@
+#include "FastEnvelope2D.h"
+
+#include "common_algorithms.h"
+#include "indirectPredicates/ip_filtered.h"
+
+#include <algorithm>
+#include <cassert>
+#include <cmath>
+#include <vector>
+
+namespace fastEnvelope {
+namespace {
+
+bool boxes_intersect(const std::array<Vector2, 2>& lhs, const std::array<Vector2, 2>& rhs)
+{
+    return lhs[1][0] >= rhs[0][0] && rhs[1][0] >= lhs[0][0] && lhs[1][1] >= rhs[0][1] &&
+           rhs[1][1] >= lhs[0][1];
+}
+
+bool point_in_segment_bounds(const Vector2& point, const Vector2& segment0, const Vector2& segment1)
+{
+    return point[0] >= std::min(segment0[0], segment1[0]) &&
+           point[0] <= std::max(segment0[0], segment1[0]) &&
+           point[1] >= std::min(segment0[1], segment1[1]) &&
+           point[1] <= std::max(segment0[1], segment1[1]);
+}
+
+} // namespace
+
+FastEnvelope2D::FastEnvelope2D(
+    const std::vector<Vector2>& vertices,
+    const std::vector<Vector2i>& edges,
+    Scalar epsilon)
+{
+    init(vertices, edges, epsilon);
+}
+
+void FastEnvelope2D::init(
+    const std::vector<Vector2>& vertices,
+    const std::vector<Vector2i>& edges,
+    Scalar epsilon)
+{
+    init(vertices, edges, std::vector<Scalar>(edges.size(), epsilon));
+}
+
+void FastEnvelope2D::init(
+    const std::vector<Vector2>& vertices,
+    const std::vector<Vector2i>& edges,
+    const std::vector<Scalar>& epsilons)
+{
+    assert(epsilons.size() == edges.size());
+
+    envelopes_.clear();
+    envelopes_.reserve(edges.size());
+    for (std::size_t i = 0; i < edges.size(); ++i) {
+        const int first = edges[i][0];
+        const int second = edges[i][1];
+        assert(first >= 0 && second >= 0);
+        assert(first < vertices.size());
+        assert(second < vertices.size());
+
+        envelopes_.push_back(make_edge_envelope(vertices[first], vertices[second], epsilons[i]));
+    }
+
+    initFPU();
+}
+
+FastEnvelope2D::EdgeEnvelope
+FastEnvelope2D::make_edge_envelope(const Vector2& point0, const Vector2& point1, Scalar epsilon)
+{
+    assert(std::isfinite(epsilon) && epsilon > 0);
+
+    const Scalar tolerance = epsilon / std::sqrt(Scalar(2));
+    const Vector2 edge = point1 - point0;
+    std::array<Vector2, 4> corners;
+
+    if (edge[0] == 0 && edge[1] == 0) {
+        corners = {
+            point0 + Vector2(-tolerance, -tolerance),
+            point0 + Vector2(tolerance, -tolerance),
+            point0 + Vector2(tolerance, tolerance),
+            point0 + Vector2(-tolerance, tolerance),
+        };
+    } else {
+        const Vector2 direction = edge.normalized();
+        const Vector2 normal(-direction[1], direction[0]);
+        corners = {
+            point0 - tolerance * direction - tolerance * normal,
+            point1 + tolerance * direction - tolerance * normal,
+            point1 + tolerance * direction + tolerance * normal,
+            point0 - tolerance * direction + tolerance * normal,
+        };
+    }
+
+    EdgeEnvelope envelope;
+    envelope.bounds = {corners[0], corners[0]};
+    for (std::size_t i = 0; i < corners.size(); ++i) {
+        envelope.halfplanes[i] = {corners[i], corners[(i + 1) % corners.size()]};
+        envelope.bounds[0] = envelope.bounds[0].cwiseMin(corners[i]);
+        envelope.bounds[1] = envelope.bounds[1].cwiseMax(corners[i]);
+    }
+    return envelope;
+}
+
+bool FastEnvelope2D::contains(const EdgeEnvelope& envelope, const Vector2& point)
+{
+    if (point[0] < envelope.bounds[0][0] || point[0] > envelope.bounds[1][0] ||
+        point[1] < envelope.bounds[0][1] || point[1] > envelope.bounds[1][1]) {
+        return false;
+    }
+
+    for (const HalfPlane& halfplane : envelope.halfplanes) {
+        // The rectangle is counter-clockwise. The legacy explicit orientation
+        // convention returns negative for a point on the left of an oriented line.
+        if (algorithms::orient_2d(halfplane[0], halfplane[1], point) > 0) return false;
+    }
+    return true;
+}
+
+bool FastEnvelope2D::contains(const EdgeEnvelope& envelope, const genericPoint& point)
+{
+    for (const HalfPlane& halfplane : envelope.halfplanes) {
+        const explicitPoint2D line0(halfplane[0][0], halfplane[0][1]);
+        const explicitPoint2D line1(halfplane[1][0], halfplane[1][1]);
+        // The rectangle is counter-clockwise, so its closed interior is on the
+        // left of every edge. Indirect_Predicates returns positive on that side.
+        if (genericPoint::orient2D(line0, line1, point) < 0) return false;
+    }
+    return true;
+}
+
+bool FastEnvelope2D::is_outside(const Vector2& point) const
+{
+    return std::none_of(envelopes_.begin(), envelopes_.end(), [&](const EdgeEnvelope& envelope) {
+        return contains(envelope, point);
+    });
+}
+
+bool FastEnvelope2D::is_outside(const Vector2& point0, const Vector2& point1) const
+{
+    if (point0[0] == point1[0] && point0[1] == point1[1]) return is_outside(point0);
+
+    const explicitPoint2D query0(point0[0], point0[1]);
+    const explicitPoint2D query1(point1[0], point1[1]);
+    std::vector<std::size_t> queue;
+    std::vector<bool> reached(envelopes_.size(), false);
+
+    // Every box containing the first endpoint is initially reachable. Reaching
+    // any box containing the second endpoint proves continuous union coverage.
+    for (std::size_t i = 0; i < envelopes_.size(); ++i) {
+        const bool contains0 = contains(envelopes_[i], point0);
+        const bool contains1 = contains(envelopes_[i], point1);
+        if (contains0 && contains1) return false;
+
+        if (contains0) {
+            reached[i] = true;
+            queue.push_back(i);
+        }
+    }
+    if (queue.empty()) return true;
+
+    const auto enqueue_boxes_containing = [&](const EdgeEnvelope& current, const auto& point) {
+        for (std::size_t candidate_id = 0; candidate_id < envelopes_.size(); ++candidate_id) {
+            if (reached[candidate_id]) continue;
+
+            const EdgeEnvelope& candidate = envelopes_[candidate_id];
+            if (!boxes_intersect(current.bounds, candidate.bounds)) continue;
+            if (!contains(candidate, point)) continue;
+
+            if (contains(candidate, point1)) return true;
+            reached[candidate_id] = true;
+            queue.push_back(candidate_id);
+        }
+        return false;
+    };
+
+    for (std::size_t next = 0; next < queue.size(); ++next) {
+        const std::size_t current_id = queue[next];
+        const EdgeEnvelope& current = envelopes_[current_id];
+
+        for (const HalfPlane& boundary : current.halfplanes) {
+            const int side0 = algorithms::orient_2d(boundary[0], boundary[1], point0);
+            const int side1 = algorithms::orient_2d(boundary[0], boundary[1], point1);
+            const int boundary_side0 = algorithms::orient_2d(point0, point1, boundary[0]);
+            const int boundary_side1 = algorithms::orient_2d(point0, point1, boundary[1]);
+
+            // A boundary vertex on the query handles corner tangencies and
+            // collinear overlaps without constructing a degenerate SSI point.
+            if (boundary_side0 == 0 && point_in_segment_bounds(boundary[0], point0, point1) &&
+                enqueue_boxes_containing(current, boundary[0]))
+                return false;
+            if (boundary_side1 == 0 && point_in_segment_bounds(boundary[1], point0, point1) &&
+                enqueue_boxes_containing(current, boundary[1]))
+                return false;
+
+            // The remaining finite segment intersection is a proper crossing.
+            if (side0 * side1 >= 0 || boundary_side0 * boundary_side1 >= 0) continue;
+
+            const explicitPoint2D line0(boundary[0][0], boundary[0][1]);
+            const explicitPoint2D line1(boundary[1][0], boundary[1][1]);
+
+            const implicitPoint2D_SSI clipped_point(query0, query1, line0, line1);
+            if (enqueue_boxes_containing(current, clipped_point)) return false;
+        }
+    }
+    return true;
+}
+
+} // namespace fastEnvelope

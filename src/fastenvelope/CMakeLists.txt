@@ -3,6 +3,8 @@ set(SOURCES
         AABB.cpp
         FastEnvelope.cpp
         FastEnvelope.h
+        FastEnvelope2D.cpp
+        FastEnvelope2D.h
         Morton.h
         Morton.cpp
         Types.hpp
