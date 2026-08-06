@@ -1,6 +1,7 @@
 #include <fastenvelope/FastEnvelope.h>
 #include <fastenvelope/Types.hpp>
-#include <fastenvelope/utils/csv_reader.h>
+
+#include "utils/csv_reader.h"
 
 #include <catch2/catch_all.hpp>
 

@@ -12,10 +12,6 @@ set(SOURCES
         indirectPredicates/ip_filtered_ex.h
         indirectPredicates/ip_filtered_ex.cpp
         indirectPredicates/ip_filtered.h
-
-
-        utils/csv_reader.cpp
-        utils/csv_reader.h
 )
 
 if(FAST_ENVELOPE_WITH_GMP)
