@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AABB.h"
 #include "Types.hpp"
 
 #include <array>
@@ -47,6 +48,7 @@ private:
     static bool contains(const EdgeEnvelope& envelope, const Vector2& point);
     static bool contains(const EdgeEnvelope& envelope, const genericPoint& point);
 
+    AABB tree_;
     std::vector<EdgeEnvelope> envelopes_;
 };
 

@@ -11,10 +11,9 @@
 namespace fastEnvelope {
 namespace {
 
-bool boxes_intersect(const std::array<Vector2, 2>& lhs, const std::array<Vector2, 2>& rhs)
+Vector3 lift_to_3d(const Vector2& point)
 {
-    return lhs[1][0] >= rhs[0][0] && rhs[1][0] >= lhs[0][0] && lhs[1][1] >= rhs[0][1] &&
-           rhs[1][1] >= lhs[0][1];
+    return Vector3(point[0], point[1], 0);
 }
 
 bool point_in_segment_bounds(const Vector2& point, const Vector2& segment0, const Vector2& segment1)
@@ -52,6 +51,8 @@ void FastEnvelope2D::init(
 
     envelopes_.clear();
     envelopes_.reserve(edges.size());
+    std::vector<std::array<Vector3, 2>> boxes;
+    boxes.reserve(edges.size());
     for (std::size_t i = 0; i < edges.size(); ++i) {
         const int first = edges[i][0];
         const int second = edges[i][1];
@@ -60,7 +61,11 @@ void FastEnvelope2D::init(
         assert(second < vertices.size());
 
         envelopes_.push_back(make_edge_envelope(vertices[first], vertices[second], epsilons[i]));
+        const EdgeEnvelope& envelope = envelopes_.back();
+        boxes.push_back({lift_to_3d(envelope.bounds[0]), lift_to_3d(envelope.bounds[1])});
     }
+
+    if (!boxes.empty()) tree_.init(boxes);
 
     initFPU();
 }
@@ -131,8 +136,12 @@ bool FastEnvelope2D::contains(const EdgeEnvelope& envelope, const genericPoint& 
 
 bool FastEnvelope2D::is_outside(const Vector2& point) const
 {
-    return std::none_of(envelopes_.begin(), envelopes_.end(), [&](const EdgeEnvelope& envelope) {
-        return contains(envelope, point);
+    if (envelopes_.empty()) return true;
+
+    std::vector<unsigned int> candidates;
+    tree_.point_find_bbox(lift_to_3d(point), candidates);
+    return std::none_of(candidates.begin(), candidates.end(), [&](unsigned int candidate) {
+        return contains(envelopes_[candidate], point);
     });
 }
 
@@ -144,10 +153,13 @@ bool FastEnvelope2D::is_outside(const Vector2& point0, const Vector2& point1) co
     const explicitPoint2D query1(point1[0], point1[1]);
     std::vector<std::size_t> queue;
     std::vector<bool> reached(envelopes_.size(), false);
+    if (envelopes_.empty()) return true;
 
     // Every box containing the first endpoint is initially reachable. Reaching
     // any box containing the second endpoint proves continuous union coverage.
-    for (std::size_t i = 0; i < envelopes_.size(); ++i) {
+    std::vector<unsigned int> starting_boxes;
+    tree_.point_find_bbox(lift_to_3d(point0), starting_boxes);
+    for (const unsigned int i : starting_boxes) {
         const bool contains0 = contains(envelopes_[i], point0);
         const bool contains1 = contains(envelopes_[i], point1);
         if (contains0 && contains1) return false;
@@ -159,12 +171,12 @@ bool FastEnvelope2D::is_outside(const Vector2& point0, const Vector2& point1) co
     }
     if (queue.empty()) return true;
 
-    const auto enqueue_boxes_containing = [&](const EdgeEnvelope& current, const auto& point) {
-        for (std::size_t candidate_id = 0; candidate_id < envelopes_.size(); ++candidate_id) {
+    const auto enqueue_boxes_containing = [&](const std::vector<unsigned int>& candidates,
+                                              const auto& point) {
+        for (const unsigned int candidate_id : candidates) {
             if (reached[candidate_id]) continue;
 
             const EdgeEnvelope& candidate = envelopes_[candidate_id];
-            if (!boxes_intersect(current.bounds, candidate.bounds)) continue;
             if (!contains(candidate, point)) continue;
 
             if (contains(candidate, point1)) return true;
@@ -179,6 +191,12 @@ bool FastEnvelope2D::is_outside(const Vector2& point0, const Vector2& point1) co
         const EdgeEnvelope& current = envelopes_[current_id];
 
         for (const HalfPlane& boundary : current.halfplanes) {
+            std::vector<unsigned int> candidates;
+            tree_.bbox_find_bbox(
+                lift_to_3d(boundary[0].cwiseMin(boundary[1])),
+                lift_to_3d(boundary[0].cwiseMax(boundary[1])),
+                candidates);
+
             const int side0 = algorithms::orient_2d(boundary[0], boundary[1], point0);
             const int side1 = algorithms::orient_2d(boundary[0], boundary[1], point1);
             const int boundary_side0 = algorithms::orient_2d(point0, point1, boundary[0]);
@@ -187,10 +205,10 @@ bool FastEnvelope2D::is_outside(const Vector2& point0, const Vector2& point1) co
             // A boundary vertex on the query handles corner tangencies and
             // collinear overlaps without constructing a degenerate SSI point.
             if (boundary_side0 == 0 && point_in_segment_bounds(boundary[0], point0, point1) &&
-                enqueue_boxes_containing(current, boundary[0]))
+                enqueue_boxes_containing(candidates, boundary[0]))
                 return false;
             if (boundary_side1 == 0 && point_in_segment_bounds(boundary[1], point0, point1) &&
-                enqueue_boxes_containing(current, boundary[1]))
+                enqueue_boxes_containing(candidates, boundary[1]))
                 return false;
 
             // The remaining finite segment intersection is a proper crossing.
@@ -200,7 +218,7 @@ bool FastEnvelope2D::is_outside(const Vector2& point0, const Vector2& point1) co
             const explicitPoint2D line1(boundary[1][0], boundary[1][1]);
 
             const implicitPoint2D_SSI clipped_point(query0, query1, line0, line1);
-            if (enqueue_boxes_containing(current, clipped_point)) return false;
+            if (enqueue_boxes_containing(candidates, clipped_point)) return false;
         }
     }
     return true;

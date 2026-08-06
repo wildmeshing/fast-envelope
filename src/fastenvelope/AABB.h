@@ -3,9 +3,8 @@
 #include "Types.hpp"
 #include "common_algorithms.h"
 
-#include "indirectPredicates/ip_filtered.h"
-
 #include <array>
+#include <cassert>
 #include <vector>
 
 namespace fastEnvelope {
