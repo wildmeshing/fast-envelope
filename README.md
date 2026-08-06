@@ -35,7 +35,10 @@ The flag is not available on clang. The code has been tested on GCC and Windows 
  - link your target with our library `target_link_libraries(<your-target> PUBLIC FastEnvelope)`
 
  ## Note
- Our library requires standard predicates to work, by default we use the fast predicates inside [Geogram](http://alice.loria.fr/software/geogram/doc/html/index.html). If you want to avoid having Geogram as dependency, you can disable it by setting `FAST_ENVELOPE_WITH_GEOGRAM_PSM_PREDICATES` to `ON`. The code will be slower.
+
+The library uses [Indirect_Predicates](https://github.com/MarcoAttene/Indirect_Predicates)
+and [NFG](https://github.com/MarcoAttene/NFG) for robust predicates. Geogram and libigl
+are not required.
 
  # Usage
   - Include `#include <fastenvelope/FastEnvelope.h>`
@@ -44,12 +47,16 @@ The flag is not available on clang. The code has been tested on GCC and Windows 
 
 
  # Testing
- We also provide an executable target `FastEnvelope_bin` that can be used for benchmarking
 
- You can run it by:
+ Build and run the Catch2 test suite with:
+
 ```bash
-./FastEnvelope_bin ./queries/<INPUT>_envelope_log.csv ./ftetwild_queries/<INPUT> <OUTPUT> 1e-3 1 ours.
+cmake --build <build-directory> --target envelope_unit_tests
+ctest --test-dir <build-directory> --output-on-failure
 ```
+
+The regression test compares 100,000 envelope queries against the reference output from
+the original implementation.
 
 # Data
 All data used in our paper can be downloaded from [https://archive.nyu.edu/handle/2451/61221](https://archive.nyu.edu/handle/2451/61221).
