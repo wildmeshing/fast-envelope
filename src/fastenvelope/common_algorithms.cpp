@@ -6,8 +6,7 @@
 #include <array>
 #include <iostream>
 
-namespace fastEnvelope {
-namespace algorithms {
+namespace fastEnvelope::algorithms {
 int seg_cut_plane(
     const Vector3& seg0,
     const Vector3& seg1,
@@ -383,7 +382,7 @@ void seg_cube(
 
 
 // this function provide an algorithm build halfspaces for a list of edges. each hex has 6 facets
-void algorithms::halfspace_generation(
+void halfspace_generation(
     const std::vector<Vector3>& m_ver,
     const std::vector<Vector2i>& m_edges,
     std::vector<std::vector<std::array<Vector3, 3>>>& halfspace,
@@ -418,7 +417,7 @@ void algorithms::halfspace_generation(
     halfspace.resize(m_edges.size());
     cornerlist.resize(m_edges.size());
     for (int i = 0; i < m_edges.size(); i++) {
-        algorithms::get_seg_corners(m_ver[m_edges[i][0]], m_ver[m_edges[i][1]], tmin, tmax);
+        get_seg_corners(m_ver[m_edges[i][0]], m_ver[m_edges[i][1]], tmin, tmax);
         cornerlist[i][0] = tmin - bbox_offset;
         cornerlist[i][1] = tmax + bbox_offset;
 
@@ -437,7 +436,7 @@ void algorithms::halfspace_generation(
             }
 
         } else {
-            algorithms::seg_cube(m_ver[m_edges[i][0]], m_ver[m_edges[i][1]], tolerance, box);
+            seg_cube(m_ver[m_edges[i][0]], m_ver[m_edges[i][1]], tolerance, box);
 
             halfspace[i].resize(6);
             for (int j = 0; j < 6; j++) {
@@ -451,7 +450,7 @@ void algorithms::halfspace_generation(
 
 
 // use user defined epsilon list to initialize adaptive envelope
-void algorithms::halfspace_generation(
+void halfspace_generation(
     const std::vector<Vector3>& m_ver,
     const std::vector<Vector2i>& m_edges,
     std::vector<std::vector<std::array<Vector3, 3>>>& halfspace,
@@ -495,7 +494,7 @@ void algorithms::halfspace_generation(
     halfspace.resize(m_edges.size());
     cornerlist.resize(m_edges.size());
     for (int i = 0; i < m_edges.size(); i++) {
-        algorithms::get_seg_corners(m_ver[m_edges[i][0]], m_ver[m_edges[i][1]], tmin, tmax);
+        get_seg_corners(m_ver[m_edges[i][0]], m_ver[m_edges[i][1]], tmin, tmax);
         cornerlist[i][0] = tmin - bbox_offset[i];
         cornerlist[i][1] = tmax + bbox_offset[i];
 
@@ -512,7 +511,7 @@ void algorithms::halfspace_generation(
             }
         } else {
             // logger().debug("Envelope Triangle Degeneration- Segment");
-            algorithms::seg_cube(m_ver[m_edges[i][0]], m_ver[m_edges[i][1]], tolerance[i], box);
+            seg_cube(m_ver[m_edges[i][0]], m_ver[m_edges[i][1]], tolerance[i], box);
 
             halfspace[i].resize(6);
             for (int j = 0; j < 6; j++) {
@@ -542,12 +541,9 @@ int orient_3d(const Vector3& p0, const Vector3& p1, const Vector3& p2, const Vec
 }
 
 
-} // namespace algorithms
-
-
 // this function provide an algorithm build halfspaces for a list of triangles. each prism has 7-8
 // facets
-void algorithms::halfspace_generation(
+void halfspace_generation(
     const std::vector<Vector3>& m_ver,
     const std::vector<Vector3i>& m_faces,
     std::vector<std::vector<std::array<Vector3, 3>>>& halfspace,
@@ -622,7 +618,7 @@ void algorithms::halfspace_generation(
     halfspace.resize(m_faces.size());
     cornerlist.resize(m_faces.size());
     for (int i = 0; i < m_faces.size(); i++) {
-        algorithms::get_tri_corners(
+        get_tri_corners(
             m_ver[m_faces[i][0]],
             m_ver[m_faces[i][1]],
             m_ver[m_faces[i][2]],
@@ -634,7 +630,7 @@ void algorithms::halfspace_generation(
         AB = m_ver[m_faces[i][1]] - m_ver[m_faces[i][0]];
         AC = m_ver[m_faces[i][2]] - m_ver[m_faces[i][0]];
         BC = m_ver[m_faces[i][2]] - m_ver[m_faces[i][1]];
-        de = algorithms::is_triangle_degenerated(
+        de = is_triangle_degenerated(
             m_ver[m_faces[i][0]],
             m_ver[m_faces[i][1]],
             m_ver[m_faces[i][2]]);
@@ -659,13 +655,13 @@ void algorithms::halfspace_generation(
             // logger().debug("Envelope Triangle Degeneration- Segment");
             Scalar length1 = AB.dot(AB), length2 = AC.dot(AC), length3 = BC.dot(BC);
             if (length1 >= length2 && length1 >= length3) {
-                algorithms::seg_cube(m_ver[m_faces[i][0]], m_ver[m_faces[i][1]], tolerance, box);
+                seg_cube(m_ver[m_faces[i][0]], m_ver[m_faces[i][1]], tolerance, box);
             }
             if (length2 >= length1 && length2 >= length3) {
-                algorithms::seg_cube(m_ver[m_faces[i][0]], m_ver[m_faces[i][2]], tolerance, box);
+                seg_cube(m_ver[m_faces[i][0]], m_ver[m_faces[i][2]], tolerance, box);
             }
             if (length3 >= length1 && length3 >= length2) {
-                algorithms::seg_cube(m_ver[m_faces[i][1]], m_ver[m_faces[i][2]], tolerance, box);
+                seg_cube(m_ver[m_faces[i][1]], m_ver[m_faces[i][2]], tolerance, box);
             }
             halfspace[i].resize(6);
             for (int j = 0; j < 6; j++) {
@@ -682,7 +678,7 @@ void algorithms::halfspace_generation(
             // logger().debug("Envelope Triangle Degeneration- Nearly");
             use_accurate_cross = true;
 
-            normal = algorithms::accurate_normal_vector(
+            normal = accurate_normal_vector(
                 m_ver[m_faces[i][0]],
                 m_ver[m_faces[i][1]],
                 m_ver[m_faces[i][2]]);
@@ -788,7 +784,7 @@ void algorithms::halfspace_generation(
 }
 
 // use user defined epsilon list to initialize adaptive envelope
-void algorithms::halfspace_generation(
+void halfspace_generation(
     const std::vector<Vector3>& m_ver,
     const std::vector<Vector3i>& m_faces,
     std::vector<std::vector<std::array<Vector3, 3>>>& halfspace,
@@ -873,7 +869,7 @@ void algorithms::halfspace_generation(
     halfspace.resize(m_faces.size());
     cornerlist.resize(m_faces.size());
     for (int i = 0; i < m_faces.size(); i++) {
-        algorithms::get_tri_corners(
+        get_tri_corners(
             m_ver[m_faces[i][0]],
             m_ver[m_faces[i][1]],
             m_ver[m_faces[i][2]],
@@ -885,7 +881,7 @@ void algorithms::halfspace_generation(
         AB = m_ver[m_faces[i][1]] - m_ver[m_faces[i][0]];
         AC = m_ver[m_faces[i][2]] - m_ver[m_faces[i][0]];
         BC = m_ver[m_faces[i][2]] - m_ver[m_faces[i][1]];
-        de = algorithms::is_triangle_degenerated(
+        de = is_triangle_degenerated(
             m_ver[m_faces[i][0]],
             m_ver[m_faces[i][1]],
             m_ver[m_faces[i][2]]);
@@ -910,13 +906,13 @@ void algorithms::halfspace_generation(
             // logger().debug("Envelope Triangle Degeneration- Segment");
             Scalar length1 = AB.dot(AB), length2 = AC.dot(AC), length3 = BC.dot(BC);
             if (length1 >= length2 && length1 >= length3) {
-                algorithms::seg_cube(m_ver[m_faces[i][0]], m_ver[m_faces[i][1]], tolerance[i], box);
+                seg_cube(m_ver[m_faces[i][0]], m_ver[m_faces[i][1]], tolerance[i], box);
             }
             if (length2 >= length1 && length2 >= length3) {
-                algorithms::seg_cube(m_ver[m_faces[i][0]], m_ver[m_faces[i][2]], tolerance[i], box);
+                seg_cube(m_ver[m_faces[i][0]], m_ver[m_faces[i][2]], tolerance[i], box);
             }
             if (length3 >= length1 && length3 >= length2) {
-                algorithms::seg_cube(m_ver[m_faces[i][1]], m_ver[m_faces[i][2]], tolerance[i], box);
+                seg_cube(m_ver[m_faces[i][1]], m_ver[m_faces[i][2]], tolerance[i], box);
             }
             halfspace[i].resize(6);
             for (int j = 0; j < 6; j++) {
@@ -932,7 +928,7 @@ void algorithms::halfspace_generation(
         if (de == NERLY_DEGENERATED) {
             // logger().debug("Envelope Triangle Degeneration- Nearly");
 
-            normal = algorithms::accurate_normal_vector(
+            normal = accurate_normal_vector(
                 m_ver[m_faces[i][0]],
                 m_ver[m_faces[i][1]],
                 m_ver[m_faces[i][2]]);
@@ -1036,7 +1032,7 @@ void algorithms::halfspace_generation(
 }
 
 
-void algorithms::get_bb_corners(const std::vector<Vector3>& vertices, Vector3& min, Vector3& max)
+void get_bb_corners(const std::vector<Vector3>& vertices, Vector3& min, Vector3& max)
 {
     min = vertices.front();
     max = vertices.front();
@@ -1048,4 +1044,5 @@ void algorithms::get_bb_corners(const std::vector<Vector3>& vertices, Vector3& m
         }
     }
 }
-} // namespace fastEnvelope
+
+} // namespace fastEnvelope::algorithms
