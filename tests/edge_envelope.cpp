@@ -162,3 +162,37 @@ TEST_CASE("adaptive edge widths follow edges through Morton sorting", "[edge-env
     CHECK(envelope.is_outside(Vector3(1.5, 0.5, 0)));
     CHECK_FALSE(envelope.is_outside(Vector3(1.5, 0, 0)));
 }
+
+TEST_CASE("edge Morton sorting overloads agree for large coordinates", "[edge-envelope][morton]")
+{
+    const Vector3 translation(900000, 900000, 900000);
+    const std::vector<Vector3> vertices = {
+        translation + Vector3(-1000, -1000, -1000),
+        translation + Vector3(-900, -950, -975),
+        translation + Vector3(1000, 1000, 1000),
+        translation + Vector3(950, 900, 975),
+        translation + Vector3(-1000, 1000, 0),
+        translation + Vector3(-900, 950, 25),
+        translation + Vector3(1000, -1000, 0),
+        translation + Vector3(900, -950, -25),
+    };
+    const std::vector<Vector2i> edges = {
+        Vector2i(0, 1),
+        Vector2i(2, 3),
+        Vector2i(4, 5),
+        Vector2i(6, 7),
+    };
+
+    std::vector<Vector2i> sorted;
+    std::vector<Vector2i> sorted_with_map;
+    std::vector<int> new2old;
+    algorithms::resorting(vertices, edges, sorted);
+    algorithms::resorting(vertices, edges, sorted_with_map, new2old);
+
+    REQUIRE(sorted.size() == sorted_with_map.size());
+    REQUIRE(new2old.size() == edges.size());
+    for (std::size_t i = 0; i < sorted.size(); ++i) {
+        CHECK((sorted[i] - sorted_with_map[i]).squaredNorm() == 0);
+        CHECK((sorted_with_map[i] - edges[new2old[i]]).squaredNorm() == 0);
+    }
+}

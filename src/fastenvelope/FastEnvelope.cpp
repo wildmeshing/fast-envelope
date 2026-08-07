@@ -7,6 +7,7 @@
 #endif
 #include "common_algorithms.h"
 
+#include <cassert>
 #include <fstream>
 
 
@@ -73,12 +74,13 @@ void FastEnvelope::init(
     const std::vector<Vector2i>& m_edges,
     const std::vector<Scalar> eps)
 {
+    assert(eps.size() == m_edges.size());
+
     std::vector<Vector2i> edges_new;
-    std::vector<Scalar> epsnew;
-    epsnew.resize(eps.size());
+    std::vector<Scalar> epsnew(m_edges.size());
     std::vector<int> new2old;
     algorithms::resorting(m_ver, m_edges, edges_new, new2old); // resort the facets order
-    for (int i = 0; i < eps.size(); i++) {
+    for (std::size_t i = 0; i < m_edges.size(); ++i) {
         epsnew[i] = eps[new2old[i]];
     }
     // algorithms::halfspace_init(m_ver, edges_new, halfspace, cornerlist, eps);

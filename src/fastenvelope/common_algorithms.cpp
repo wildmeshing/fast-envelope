@@ -4,6 +4,7 @@
 #include "indirectPredicates/ip_filtered.h"
 
 #include <array>
+#include <cmath>
 #include <iostream>
 
 namespace fastEnvelope::algorithms {
@@ -309,7 +310,7 @@ void resorting(
 }
 
 void resorting(
-    const std::vector<Vector3>& V,
+    const std::vector<Vector3>& Vori,
     const std::vector<Vector2i>& E,
     std::vector<Vector2i>& enew,
     std::vector<int>& new2old)
@@ -325,6 +326,21 @@ void resorting(
     const int multi = 1000;
     ct.resize(E.size());
     list.resize(E.size());
+
+    // Keep the Morton coordinates identical to the overload without new2old.
+    std::vector<Vector3> V = Vori;
+    Vector3 vmin, vmax;
+    get_bb_corners(V, vmin, vmax);
+    const Vector3 center = (vmin + vmax) / 2;
+    for (Vector3& vertex : V) vertex -= center;
+
+    const Vector3 scale_point = vmax - center;
+    const Scalar scale = std::max(
+        std::max(std::abs(scale_point[0]), std::abs(scale_point[1])),
+        std::abs(scale_point[2]));
+    if (scale > 300) {
+        for (Vector3& vertex : V) vertex /= scale;
+    }
 
     for (int i = 0; i < E.size(); i++) {
         ct[i][0] = int(((V[E[i][0]] + V[E[i][1]]) * multi)[0]);
