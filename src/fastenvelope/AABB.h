@@ -3,9 +3,8 @@
 #include "Types.hpp"
 #include "common_algorithms.h"
 
-#include "indirectPredicates/ip_filtered.h"
-
 #include <array>
+#include <cassert>
 #include <vector>
 
 namespace fastEnvelope {
@@ -50,6 +49,13 @@ private:
         int n,
         int b,
         int e) const;
+    void segment_2d_search_bbd_recursive(
+        const Vector2& seg0,
+        const Vector2& seg1,
+        std::vector<unsigned int>& list,
+        int n,
+        int b,
+        int e) const;
 
 
     void bbd_searching_recursive(
@@ -65,6 +71,7 @@ private:
     bool is_triangle_cut_bounding_box(const TriCutCache& tc, int index) const;
     bool is_point_cut_bounding_box(const Vector3& p, int index) const;
     bool is_segment_cut_bounding_box(const Vector3& seg0, const Vector3& seg1, int index) const;
+    bool is_segment_cut_bounding_box(const Vector2& seg0, const Vector2& seg1, int index) const;
     bool is_bbd_cut_bounding_box(const Vector3& bbd0, const Vector3& bbd1, int index) const;
 
 public:
@@ -119,6 +126,14 @@ public:
     {
         assert(boxlist.size() > 0);
         segment_search_bbd_recursive(seg0, seg1, list, 1, 0, n_corners);
+    }
+    inline void segment_find_bbox(
+        const Vector2& seg0,
+        const Vector2& seg1,
+        std::vector<unsigned int>& list) const
+    {
+        assert(boxlist.size() > 0);
+        segment_2d_search_bbd_recursive(seg0, seg1, list, 1, 0, n_corners);
     }
     inline void
     bbox_find_bbox(const Vector3& bbd0, const Vector3& bbd1, std::vector<unsigned int>& list) const

@@ -4,10 +4,10 @@
 #include "indirectPredicates/ip_filtered.h"
 
 #include <array>
+#include <cmath>
 #include <iostream>
 
-namespace fastEnvelope {
-namespace algorithms {
+namespace fastEnvelope::algorithms {
 int seg_cut_plane(
     const Vector3& seg0,
     const Vector3& seg1,
@@ -38,6 +38,17 @@ void get_tri_corners(
     maxt[1] = std::max(std::max(triangle0[1], triangle1[1]), triangle2[1]);
     maxt[2] = std::max(std::max(triangle0[2], triangle1[2]), triangle2[2]);
 }
+
+void get_seg_corners(const Vector3& edge0, const Vector3& edge1, Vector3& mint, Vector3& maxt)
+{
+    mint[0] = std::min(edge0[0], edge1[0]);
+    mint[1] = std::min(edge0[1], edge1[1]);
+    mint[2] = std::min(edge0[2], edge1[2]);
+    maxt[0] = std::max(edge0[0], edge1[0]);
+    maxt[1] = std::max(edge0[1], edge1[1]);
+    maxt[2] = std::max(edge0[2], edge1[2]);
+}
+
 bool box_box_intersection(
     const Vector3& min1,
     const Vector3& max1,
@@ -240,6 +251,121 @@ void resorting(
 }
 
 
+void resorting(
+    const std::vector<Vector3>& Vori,
+    const std::vector<Vector2i>& E,
+    std::vector<Vector2i>& enew)
+{
+    std::vector<std::array<int, 3>> ct;
+    struct sortstruct
+    {
+        int order;
+        Resorting::MortonCode64 morton;
+    };
+    std::vector<sortstruct> list;
+    const int multi = 1000;
+    ct.resize(E.size());
+    list.resize(E.size());
+
+    // since the morton code requires a correct scale of input vertices,
+    //  we need to scale the vertices if their coordinates are out of range
+    std::vector<Vector3> V = Vori; // this is for rescaling vertices
+    Vector3 vmin, vmax;
+    get_bb_corners(V, vmin, vmax);
+    Vector3 center = (vmin + vmax) / 2;
+
+    for (int i = 0; i < V.size(); i++) {
+        V[i] = V[i] - center; // make box centered at origin
+    }
+
+    Vector3 scale_point = vmax - center; // after placing box at origin, vmax and vmin are symetric.
+
+    Scalar xscale, yscale, zscale;
+    xscale = fabs(scale_point[0]);
+    yscale = fabs(scale_point[1]);
+    zscale = fabs(scale_point[2]);
+    Scalar scale = std::max(std::max(xscale, yscale), zscale);
+    if (scale > 300) {
+        for (int i = 0; i < V.size(); i++) {
+            V[i] = V[i] / scale; // if the box is too big, resize it
+        }
+    }
+
+    for (int i = 0; i < E.size(); i++) {
+        ct[i][0] = int(((V[E[i][0]] + V[E[i][1]]) * multi)[0]);
+        ct[i][1] = int(((V[E[i][0]] + V[E[i][1]]) * multi)[1]);
+        ct[i][2] = int(((V[E[i][0]] + V[E[i][1]]) * multi)[2]);
+        list[i].morton = Resorting::MortonCode64(ct[i][0], ct[i][1], ct[i][2]);
+        list[i].order = i;
+    }
+    const auto morton_compare = [](const sortstruct& a, const sortstruct& b) {
+        return (a.morton < b.morton);
+    };
+    std::sort(list.begin(), list.end(), morton_compare);
+
+    enew.resize(E.size());
+    for (int i = 0; i < E.size(); i++) {
+        enew[i] = E[list[i].order];
+    }
+}
+
+void resorting(
+    const std::vector<Vector3>& Vori,
+    const std::vector<Vector2i>& E,
+    std::vector<Vector2i>& enew,
+    std::vector<int>& new2old)
+{
+    std::vector<std::array<int, 3>> ct;
+    struct sortstruct
+    {
+        int order;
+        Resorting::MortonCode64 morton;
+    };
+
+    std::vector<sortstruct> list;
+    const int multi = 1000;
+    ct.resize(E.size());
+    list.resize(E.size());
+
+    // Keep the Morton coordinates identical to the overload without new2old.
+    std::vector<Vector3> V = Vori;
+    Vector3 vmin, vmax;
+    get_bb_corners(V, vmin, vmax);
+    const Vector3 center = (vmin + vmax) / 2;
+    for (Vector3& vertex : V) vertex -= center;
+
+    const Vector3 scale_point = vmax - center;
+    const Scalar scale = std::max(
+        std::max(std::abs(scale_point[0]), std::abs(scale_point[1])),
+        std::abs(scale_point[2]));
+    if (scale > 300) {
+        for (Vector3& vertex : V) vertex /= scale;
+    }
+
+    for (int i = 0; i < E.size(); i++) {
+        ct[i][0] = int(((V[E[i][0]] + V[E[i][1]]) * multi)[0]);
+        ct[i][1] = int(((V[E[i][0]] + V[E[i][1]]) * multi)[1]);
+        ct[i][2] = int(((V[E[i][0]] + V[E[i][1]]) * multi)[2]);
+        list[i].morton = Resorting::MortonCode64(ct[i][0], ct[i][1], ct[i][2]);
+        list[i].order = i;
+    }
+    const auto morton_compare = [](const sortstruct& a, const sortstruct& b) {
+        return (a.morton < b.morton);
+    };
+    std::sort(list.begin(), list.end(), morton_compare);
+
+    enew.resize(E.size());
+    for (int i = 0; i < E.size(); i++) {
+        enew[i] = E[list[i].order];
+    }
+    new2old.resize(E.size());
+
+    for (int i = 0; i < E.size(); i++) {
+        new2old[i] = list[i].order;
+    }
+}
+
+
 void seg_cube(
     const Vector3& p1,
     const Vector3& p2,
@@ -271,6 +397,148 @@ void seg_cube(
 }
 
 
+// this function provide an algorithm build halfspaces for a list of edges. each hex has 6 facets
+void halfspace_generation(
+    const std::vector<Vector3>& m_ver,
+    const std::vector<Vector2i>& m_edges,
+    std::vector<std::vector<std::array<Vector3, 3>>>& halfspace,
+    std::vector<std::array<Vector3, 2>>& cornerlist,
+    const Scalar& epsilon)
+{
+    Scalar tolerance = epsilon / sqrt(3); // the envelope thickness, to be conservative
+    Vector3 AB;
+    std::array<Vector3, 8> box;
+    Vector3 tmin, tmax;
+    Vector3 bbox_offset;
+    bbox_offset[0] = 1;
+    bbox_offset[1] = 1;
+    bbox_offset[2] = 1;
+    bbox_offset = bbox_offset * tolerance * sqrt(3) * (1 + 1e-6);
+
+    static const std::array<Vector3, 8> boxorder = {{
+        {1, 1, 1},
+        {-1, 1, 1},
+        {-1, -1, 1},
+        {1, -1, 1},
+        {1, 1, -1},
+        {-1, 1, -1},
+        {-1, -1, -1},
+        {1, -1, -1},
+    }};
+
+
+    static const int c_face[6][3] =
+        {{0, 1, 2}, {4, 7, 6}, {0, 3, 4}, {1, 0, 4}, {1, 5, 2}, {2, 6, 3}};
+
+    halfspace.resize(m_edges.size());
+    cornerlist.resize(m_edges.size());
+    for (int i = 0; i < m_edges.size(); i++) {
+        get_seg_corners(m_ver[m_edges[i][0]], m_ver[m_edges[i][1]], tmin, tmax);
+        cornerlist[i][0] = tmin - bbox_offset;
+        cornerlist[i][1] = tmax + bbox_offset;
+
+        AB = m_ver[m_edges[i][1]] - m_ver[m_edges[i][0]];
+
+        if (AB[0] == 0 && AB[1] == 0 && AB[2] == 0) {
+            // logger().debug("Envelope Triangle Degeneration- Point");
+            for (int j = 0; j < 8; j++) {
+                box[j] = m_ver[m_edges[i][0]] + boxorder[j] * tolerance;
+            }
+            halfspace[i].resize(6);
+            for (int j = 0; j < 6; j++) {
+                halfspace[i][j][0] = box[c_face[j][0]];
+                halfspace[i][j][1] = box[c_face[j][1]];
+                halfspace[i][j][2] = box[c_face[j][2]];
+            }
+
+        } else {
+            seg_cube(m_ver[m_edges[i][0]], m_ver[m_edges[i][1]], tolerance, box);
+
+            halfspace[i].resize(6);
+            for (int j = 0; j < 6; j++) {
+                halfspace[i][j][0] = box[c_face[j][0]];
+                halfspace[i][j][1] = box[c_face[j][1]];
+                halfspace[i][j][2] = box[c_face[j][2]];
+            }
+        }
+    }
+}
+
+
+// use user defined epsilon list to initialize adaptive envelope
+void halfspace_generation(
+    const std::vector<Vector3>& m_ver,
+    const std::vector<Vector2i>& m_edges,
+    std::vector<std::vector<std::array<Vector3, 3>>>& halfspace,
+    std::vector<std::array<Vector3, 2>>& cornerlist,
+    const std::vector<Scalar>& epsilons)
+{
+    std::vector<Scalar> tolerance;
+    tolerance.resize(epsilons.size());
+    for (int i = 0; i < epsilons.size(); i++) {
+        tolerance[i] = epsilons[i] / sqrt(3); // the envelope thickness, to be conservative
+    }
+
+
+    Vector3 AB;
+    std::array<Vector3, 3> plane;
+    std::array<Vector3, 8> box;
+    Vector3 tmin, tmax;
+    std::vector<Vector3> bbox_offset;
+    bbox_offset.resize(epsilons.size());
+    for (int i = 0; i < epsilons.size(); i++) {
+        bbox_offset[i][0] = 1;
+        bbox_offset[i][1] = 1;
+        bbox_offset[i][2] = 1;
+        bbox_offset[i] = bbox_offset[i] * tolerance[i] * sqrt(3) * (1 + 1e-6);
+    }
+
+    static const std::array<Vector3, 8> boxorder = {{
+        {1, 1, 1},
+        {-1, 1, 1},
+        {-1, -1, 1},
+        {1, -1, 1},
+        {1, 1, -1},
+        {-1, 1, -1},
+        {-1, -1, -1},
+        {1, -1, -1},
+    }};
+
+    static const int c_face[6][3] =
+        {{0, 1, 2}, {4, 7, 6}, {0, 3, 4}, {1, 0, 4}, {1, 5, 2}, {2, 6, 3}};
+
+    halfspace.resize(m_edges.size());
+    cornerlist.resize(m_edges.size());
+    for (int i = 0; i < m_edges.size(); i++) {
+        get_seg_corners(m_ver[m_edges[i][0]], m_ver[m_edges[i][1]], tmin, tmax);
+        cornerlist[i][0] = tmin - bbox_offset[i];
+        cornerlist[i][1] = tmax + bbox_offset[i];
+
+        AB = m_ver[m_edges[i][1]] - m_ver[m_edges[i][0]];
+        if (AB[0] == 0 && AB[1] == 0 && AB[2] == 0) {
+            for (int j = 0; j < 8; j++) {
+                box[j] = m_ver[m_edges[i][0]] + boxorder[j] * tolerance[i];
+            }
+            halfspace[i].resize(6);
+            for (int j = 0; j < 6; j++) {
+                halfspace[i][j][0] = box[c_face[j][0]];
+                halfspace[i][j][1] = box[c_face[j][1]];
+                halfspace[i][j][2] = box[c_face[j][2]];
+            }
+        } else {
+            // logger().debug("Envelope Triangle Degeneration- Segment");
+            seg_cube(m_ver[m_edges[i][0]], m_ver[m_edges[i][1]], tolerance[i], box);
+
+            halfspace[i].resize(6);
+            for (int j = 0; j < 6; j++) {
+                halfspace[i][j][0] = box[c_face[j][0]];
+                halfspace[i][j][1] = box[c_face[j][1]];
+                halfspace[i][j][2] = box[c_face[j][2]];
+            }
+        }
+    }
+}
+
 int orient_2d(const Vector2& p0, const Vector2& p1, const Vector2& p2)
 {
     const explicitPoint2D a(p0[0], p0[1]);
@@ -279,11 +547,7 @@ int orient_2d(const Vector2& p0, const Vector2& p1, const Vector2& p2)
     return -genericPoint::orient2D(a, b, c);
 }
 
-int orient_3d(
-    const Vector3& p0,
-    const Vector3& p1,
-    const Vector3& p2,
-    const Vector3& p3)
+int orient_3d(const Vector3& p0, const Vector3& p1, const Vector3& p2, const Vector3& p3)
 {
     const explicitPoint3D a(p0[0], p0[1], p0[2]);
     const explicitPoint3D b(p1[0], p1[1], p1[2]);
@@ -293,12 +557,9 @@ int orient_3d(
 }
 
 
-} // namespace algorithms
-
-
 // this function provide an algorithm build halfspaces for a list of triangles. each prism has 7-8
 // facets
-void algorithms::halfspace_generation(
+void halfspace_generation(
     const std::vector<Vector3>& m_ver,
     const std::vector<Vector3i>& m_faces,
     std::vector<std::vector<std::array<Vector3, 3>>>& halfspace,
@@ -373,7 +634,7 @@ void algorithms::halfspace_generation(
     halfspace.resize(m_faces.size());
     cornerlist.resize(m_faces.size());
     for (int i = 0; i < m_faces.size(); i++) {
-        algorithms::get_tri_corners(
+        get_tri_corners(
             m_ver[m_faces[i][0]],
             m_ver[m_faces[i][1]],
             m_ver[m_faces[i][2]],
@@ -385,7 +646,7 @@ void algorithms::halfspace_generation(
         AB = m_ver[m_faces[i][1]] - m_ver[m_faces[i][0]];
         AC = m_ver[m_faces[i][2]] - m_ver[m_faces[i][0]];
         BC = m_ver[m_faces[i][2]] - m_ver[m_faces[i][1]];
-        de = algorithms::is_triangle_degenerated(
+        de = is_triangle_degenerated(
             m_ver[m_faces[i][0]],
             m_ver[m_faces[i][1]],
             m_ver[m_faces[i][2]]);
@@ -410,13 +671,13 @@ void algorithms::halfspace_generation(
             // logger().debug("Envelope Triangle Degeneration- Segment");
             Scalar length1 = AB.dot(AB), length2 = AC.dot(AC), length3 = BC.dot(BC);
             if (length1 >= length2 && length1 >= length3) {
-                algorithms::seg_cube(m_ver[m_faces[i][0]], m_ver[m_faces[i][1]], tolerance, box);
+                seg_cube(m_ver[m_faces[i][0]], m_ver[m_faces[i][1]], tolerance, box);
             }
             if (length2 >= length1 && length2 >= length3) {
-                algorithms::seg_cube(m_ver[m_faces[i][0]], m_ver[m_faces[i][2]], tolerance, box);
+                seg_cube(m_ver[m_faces[i][0]], m_ver[m_faces[i][2]], tolerance, box);
             }
             if (length3 >= length1 && length3 >= length2) {
-                algorithms::seg_cube(m_ver[m_faces[i][1]], m_ver[m_faces[i][2]], tolerance, box);
+                seg_cube(m_ver[m_faces[i][1]], m_ver[m_faces[i][2]], tolerance, box);
             }
             halfspace[i].resize(6);
             for (int j = 0; j < 6; j++) {
@@ -433,7 +694,7 @@ void algorithms::halfspace_generation(
             // logger().debug("Envelope Triangle Degeneration- Nearly");
             use_accurate_cross = true;
 
-            normal = algorithms::accurate_normal_vector(
+            normal = accurate_normal_vector(
                 m_ver[m_faces[i][0]],
                 m_ver[m_faces[i][1]],
                 m_ver[m_faces[i][2]]);
@@ -539,7 +800,7 @@ void algorithms::halfspace_generation(
 }
 
 // use user defined epsilon list to initialize adaptive envelope
-void algorithms::halfspace_generation(
+void halfspace_generation(
     const std::vector<Vector3>& m_ver,
     const std::vector<Vector3i>& m_faces,
     std::vector<std::vector<std::array<Vector3, 3>>>& halfspace,
@@ -624,7 +885,7 @@ void algorithms::halfspace_generation(
     halfspace.resize(m_faces.size());
     cornerlist.resize(m_faces.size());
     for (int i = 0; i < m_faces.size(); i++) {
-        algorithms::get_tri_corners(
+        get_tri_corners(
             m_ver[m_faces[i][0]],
             m_ver[m_faces[i][1]],
             m_ver[m_faces[i][2]],
@@ -636,7 +897,7 @@ void algorithms::halfspace_generation(
         AB = m_ver[m_faces[i][1]] - m_ver[m_faces[i][0]];
         AC = m_ver[m_faces[i][2]] - m_ver[m_faces[i][0]];
         BC = m_ver[m_faces[i][2]] - m_ver[m_faces[i][1]];
-        de = algorithms::is_triangle_degenerated(
+        de = is_triangle_degenerated(
             m_ver[m_faces[i][0]],
             m_ver[m_faces[i][1]],
             m_ver[m_faces[i][2]]);
@@ -661,13 +922,13 @@ void algorithms::halfspace_generation(
             // logger().debug("Envelope Triangle Degeneration- Segment");
             Scalar length1 = AB.dot(AB), length2 = AC.dot(AC), length3 = BC.dot(BC);
             if (length1 >= length2 && length1 >= length3) {
-                algorithms::seg_cube(m_ver[m_faces[i][0]], m_ver[m_faces[i][1]], tolerance[i], box);
+                seg_cube(m_ver[m_faces[i][0]], m_ver[m_faces[i][1]], tolerance[i], box);
             }
             if (length2 >= length1 && length2 >= length3) {
-                algorithms::seg_cube(m_ver[m_faces[i][0]], m_ver[m_faces[i][2]], tolerance[i], box);
+                seg_cube(m_ver[m_faces[i][0]], m_ver[m_faces[i][2]], tolerance[i], box);
             }
             if (length3 >= length1 && length3 >= length2) {
-                algorithms::seg_cube(m_ver[m_faces[i][1]], m_ver[m_faces[i][2]], tolerance[i], box);
+                seg_cube(m_ver[m_faces[i][1]], m_ver[m_faces[i][2]], tolerance[i], box);
             }
             halfspace[i].resize(6);
             for (int j = 0; j < 6; j++) {
@@ -683,7 +944,7 @@ void algorithms::halfspace_generation(
         if (de == NERLY_DEGENERATED) {
             // logger().debug("Envelope Triangle Degeneration- Nearly");
 
-            normal = algorithms::accurate_normal_vector(
+            normal = accurate_normal_vector(
                 m_ver[m_faces[i][0]],
                 m_ver[m_faces[i][1]],
                 m_ver[m_faces[i][2]]);
@@ -785,7 +1046,9 @@ void algorithms::halfspace_generation(
         // std::cout << "envelope face nbr " << halfspace[i].size() << std::endl;
     }
 }
-void algorithms::get_bb_corners(const std::vector<Vector3>& vertices, Vector3& min, Vector3& max)
+
+
+void get_bb_corners(const std::vector<Vector3>& vertices, Vector3& min, Vector3& max)
 {
     min = vertices.front();
     max = vertices.front();
@@ -797,4 +1060,5 @@ void algorithms::get_bb_corners(const std::vector<Vector3>& vertices, Vector3& m
         }
     }
 }
-} // namespace fastEnvelope
+
+} // namespace fastEnvelope::algorithms

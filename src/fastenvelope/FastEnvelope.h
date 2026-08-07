@@ -21,12 +21,24 @@ public:
         const Scalar eps);
     FastEnvelope() {}
 
+    /// Face init
     void
     init(const std::vector<Vector3>& m_ver, const std::vector<Vector3i>& m_faces, const Scalar eps);
+    /// Face init with varying epsilon for each face
     void init(
         const std::vector<Vector3>& m_ver,
         const std::vector<Vector3i>& m_faces,
         const std::vector<Scalar> eps);
+
+    /// edge init
+    void
+    init(const std::vector<Vector3>& m_ver, const std::vector<Vector2i>& m_edges, const Scalar eps);
+    /// edge init with varying epsilon for each edge
+    void init(
+        const std::vector<Vector3>& m_ver,
+        const std::vector<Vector2i>& m_edges,
+        const std::vector<Scalar> eps);
+
     void init(
         const std::vector<std::vector<std::array<Vector3, 3>>> halfspace_input,
         const std::vector<std::array<Vector3, 2>> cornerlist_input,

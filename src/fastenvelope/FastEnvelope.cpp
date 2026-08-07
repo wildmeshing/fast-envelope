@@ -7,6 +7,7 @@
 #endif
 #include "common_algorithms.h"
 
+#include <cassert>
 #include <fstream>
 
 
@@ -48,6 +49,7 @@ FastEnvelope::FastEnvelope(
     halfspace.clear();
     init(m_ver, m_faces, eps);
 }
+
 void FastEnvelope::init(
     const std::vector<Vector3>& m_ver,
     const std::vector<Vector3i>& m_faces,
@@ -60,6 +62,48 @@ void FastEnvelope::init(
 
     // algorithms::halfspace_init(m_ver, faces_new, halfspace, cornerlist, eps);
     algorithms::halfspace_generation(m_ver, faces_new, halfspace, cornerlist, eps);
+
+    tree.init(cornerlist);
+
+    // initializing types
+    initFPU();
+}
+
+void FastEnvelope::init(
+    const std::vector<Vector3>& m_ver,
+    const std::vector<Vector2i>& m_edges,
+    const std::vector<Scalar> eps)
+{
+    assert(eps.size() == m_edges.size());
+
+    std::vector<Vector2i> edges_new;
+    std::vector<Scalar> epsnew(m_edges.size());
+    std::vector<int> new2old;
+    algorithms::resorting(m_ver, m_edges, edges_new, new2old); // resort the facets order
+    for (std::size_t i = 0; i < m_edges.size(); ++i) {
+        epsnew[i] = eps[new2old[i]];
+    }
+    // algorithms::halfspace_init(m_ver, edges_new, halfspace, cornerlist, eps);
+    algorithms::halfspace_generation(m_ver, edges_new, halfspace, cornerlist, epsnew);
+
+    tree.init(cornerlist);
+
+    // initializing types
+    initFPU();
+}
+
+
+void FastEnvelope::init(
+    const std::vector<Vector3>& m_ver,
+    const std::vector<Vector2i>& m_edges,
+    const Scalar eps)
+{
+    std::vector<Vector2i> edges_new;
+
+    algorithms::resorting(m_ver, m_edges, edges_new); // resort the facets order
+
+    // algorithms::halfspace_init(m_ver, edges_new, halfspace, cornerlist, eps);
+    algorithms::halfspace_generation(m_ver, edges_new, halfspace, cornerlist, eps);
 
     tree.init(cornerlist);
 

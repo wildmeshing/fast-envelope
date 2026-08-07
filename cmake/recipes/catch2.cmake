@@ -25,3 +25,8 @@ option(CATCH_INSTALL_EXTRAS "Install extras alongside library" OFF)
 
 include(CPM)
 CPMAddPackage("gh:catchorg/Catch2@3.13.0")
+
+# CATCH_CONFIG_CPP17_STRING_VIEW requires Catch2's own sources to be
+# compiled with std::string_view support. This is separate from the C++
+# standard used by envelope_unit_tests.
+target_compile_features(Catch2 PUBLIC cxx_std_17)

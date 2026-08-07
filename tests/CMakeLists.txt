@@ -4,6 +4,8 @@
 
 set(test_sources
   box_cut_equivalence.cpp
+  edge_envelope.cpp
+  envelope_2d.cpp
   orient_sign_convention.cpp
   run_test.cpp
   utils/csv_reader.cpp
