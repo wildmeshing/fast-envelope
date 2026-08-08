@@ -3768,7 +3768,7 @@ bool FastEnvelope::is_3_triangle_cut_Rational(
 {
     Vector3 n = (triangle[0] - triangle[1]).cross(triangle[0] - triangle[2]) + triangle[0];
 
-    if (Predicates::orient_3d(n, triangle[0], triangle[1], triangle[2]) == 0) {
+    if (algorithms::orient_3d(n, triangle[0], triangle[1], triangle[2]) == 0) {
         // std::cout << "Degeneration happens" << std::endl;
         n = {{Vector3(rand(), rand(), rand())}};
     }

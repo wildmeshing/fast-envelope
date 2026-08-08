@@ -146,7 +146,8 @@ bool FastEnvelope2D::is_outside(const Vector2& point) const
 {
     if (envelopes_.empty()) return true;
 
-    std::vector<unsigned int> candidates;
+    static thread_local std::vector<unsigned int> candidates;
+    candidates.clear();
     tree_.point_find_bbox(lift_to_3d(point), candidates);
     return std::none_of(candidates.begin(), candidates.end(), [&](unsigned int candidate) {
         return contains(envelopes_[candidate], point);
@@ -156,21 +157,31 @@ bool FastEnvelope2D::is_outside(const Vector2& point) const
 bool FastEnvelope2D::is_outside(const Vector2& point0, const Vector2& point1) const
 {
     if (point0[0] == point1[0] && point0[1] == point1[1]) return is_outside(point0);
+    if (envelopes_.empty()) return true;
 
     const explicitPoint2D query0(point0[0], point0[1]);
     const explicitPoint2D query1(point1[0], point1[1]);
-    std::vector<std::size_t> queue;
-    std::vector<bool> reached(envelopes_.size(), false);
-    if (envelopes_.empty()) return true;
 
-    std::vector<unsigned int> candidates;
+    // The traversal state is indexed by position within `candidates`, not by envelope id:
+    // this predicate runs once per candidate operation in a remeshing loop, so an
+    // envelope-sized visited array would cost O(#input edges) of zeroing per query no matter
+    // how few boxes the tree actually returned. The buffers are reused across queries for the
+    // same reason -- they are pure scratch, and thread_local keeps the query const and safe
+    // to call from several threads. Reentrancy is not a concern: the only nested call is the
+    // degenerate-query forward above, which returns before any of this is touched.
+    static thread_local std::vector<unsigned int> candidates;
+    static thread_local std::vector<std::size_t> queue;
+    static thread_local std::vector<bool> reached;
+    candidates.clear();
+    queue.clear();
     tree_.segment_find_bbox(point0, point1, candidates);
+    reached.assign(candidates.size(), false);
 
     // Every box containing the first endpoint is initially reachable. Reaching
     // any box containing the second endpoint proves continuous union coverage.
-    for (const unsigned int i : candidates) {
-        const bool contains0 = contains(envelopes_[i], point0);
-        const bool contains1 = contains(envelopes_[i], point1);
+    for (std::size_t i = 0; i < candidates.size(); ++i) {
+        const bool contains0 = contains(envelopes_[candidates[i]], point0);
+        const bool contains1 = contains(envelopes_[candidates[i]], point1);
         if (contains0 && contains1) return false;
 
         if (contains0) {
@@ -181,22 +192,21 @@ bool FastEnvelope2D::is_outside(const Vector2& point0, const Vector2& point1) co
     if (queue.empty()) return true;
 
     const auto enqueue_boxes_containing = [&](const auto& point) {
-        for (const unsigned int candidate_id : candidates) {
-            if (reached[candidate_id]) continue;
+        for (std::size_t i = 0; i < candidates.size(); ++i) {
+            if (reached[i]) continue;
 
-            const EdgeEnvelope& candidate = envelopes_[candidate_id];
+            const EdgeEnvelope& candidate = envelopes_[candidates[i]];
             if (!contains(candidate, point)) continue;
 
             if (contains(candidate, point1)) return true;
-            reached[candidate_id] = true;
-            queue.push_back(candidate_id);
+            reached[i] = true;
+            queue.push_back(i);
         }
         return false;
     };
 
     for (std::size_t next = 0; next < queue.size(); ++next) {
-        const std::size_t current_id = queue[next];
-        const EdgeEnvelope& current = envelopes_[current_id];
+        const EdgeEnvelope& current = envelopes_[candidates[queue[next]]];
 
         for (const HalfPlane& boundary : current.halfplanes) {
             const int side0 = algorithms::orient_2d(boundary[0], boundary[1], point0);

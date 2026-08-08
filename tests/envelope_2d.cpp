@@ -301,3 +301,37 @@ TEST_CASE(
     CHECK(find(Vector2(-1, 1), Vector2(1.5, 1)) == std::vector<unsigned int>{0});
     CHECK(find(Vector2(-1, 1), Vector2(0, 0)) == std::vector<unsigned int>{0});
 }
+
+TEST_CASE("2D segment traversal indexes its visited set by candidate", "[envelope-2d]")
+{
+    // The traversal marks boxes visited by their position in the AABB's candidate list, not
+    // by their envelope id, so that a query costs O(candidates) rather than O(#input edges).
+    // Morton resorting is not applied to FastEnvelope2D, but the tree still returns candidates
+    // in tree order and only for the boxes the query's bounding box touches -- so on a long
+    // polyline the two indexings diverge, and confusing them silently breaks the chain.
+    //
+    // The chain here is a staircase of 64 overlapping unit rectangles, with the query crossing
+    // the last 32. Under an id-indexed visited set this passes either way; it fails only if
+    // the two index spaces are mixed up.
+    const int count = 64;
+    const Scalar root_two = std::sqrt(Scalar(2));
+    std::vector<Vector2> vertices;
+    std::vector<Vector2i> edges;
+    for (int i = 0; i < count; ++i) {
+        vertices.emplace_back(Scalar(i), Scalar(0));
+        vertices.emplace_back(Scalar(i) + Scalar(0.75), Scalar(0));
+        edges.emplace_back(2 * i, 2 * i + 1);
+    }
+
+    const FastEnvelope2D envelope(vertices, edges, Scalar(0.2) * root_two);
+
+    // Fully covered: consecutive rectangles overlap, so the union is connected end to end.
+    CHECK_FALSE(envelope.is_outside(Vector2(32, 0), Vector2(Scalar(count) - 1, 0)));
+    CHECK_FALSE(envelope.is_outside(Vector2(0, 0), Vector2(Scalar(count) - 1, 0)));
+    // Reversed, so the traversal starts from the other end of the same chain.
+    CHECK_FALSE(envelope.is_outside(Vector2(Scalar(count) - 1, 0), Vector2(0, 0)));
+    // Past the last rectangle there is nothing left to hand coverage over to.
+    CHECK(envelope.is_outside(Vector2(32, 0), Vector2(Scalar(count) + 1, 0)));
+    // Off the axis by more than the half-width.
+    CHECK(envelope.is_outside(Vector2(32, Scalar(0.5)), Vector2(40, Scalar(0.5))));
+}
