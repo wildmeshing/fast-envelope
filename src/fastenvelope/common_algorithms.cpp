@@ -539,6 +539,21 @@ void halfspace_generation(
     }
 }
 
+// These two do NOT share a handedness, and the asymmetry is not a mistake -- it is what makes
+// each of them reproduce the Shewchuk-convention predicate it replaced.
+//
+// Indirect_Predicates orients from the FIRST argument: orient2D(a,b,c) is sign((b-a) x (c-a))
+// and orient3D(a,b,c,d) is sign det[b-a, c-a, d-a]. Shewchuk orients from the LAST. In 3D that
+// relabelling is an odd permutation, so the negation below lands exactly on Shewchuk's sign;
+// in 2D it is an even permutation, so orient2D already agrees with Shewchuk and the negation
+// makes this function its opposite.
+//
+// Net effect: orient_3d(p0,p1,p2,p3) is positive when p3 is below the plane <p0,p1,p2>, and
+// orient_2d(p0,p1,p2) is NEGATIVE when p2 is to the left of p0->p1. Every current caller is
+// invariant to a uniform sign flip -- is_triangle_cut_bounding_box compares ori * o_corner,
+// is_segment_cut_bounding_box asks only whether all corners agree, is_triangle_degenerated
+// tests against zero -- and FastEnvelope2D::contains is written against the convention stated
+// here. New code comparing either result to an absolute sign should re-read this comment.
 int orient_2d(const Vector2& p0, const Vector2& p1, const Vector2& p2)
 {
     const explicitPoint2D a(p0[0], p0[1]);
