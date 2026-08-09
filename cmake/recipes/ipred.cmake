@@ -19,9 +19,21 @@ message(STATUS "Third-party: creating target 'indirectPredicates'")
 #
 # SOURCE_SUBDIR points at a directory with no CMakeLists.txt so MakeAvailable populates
 # the sources without add_subdirectory()ing them: both are header-only here, and
-# Indirect_Predicates' own CMakeLists builds a test executable we do not want. The
-# declarations match VolumeRemesher's, so whichever project declares them first wins
-# and the build ends up with exactly one copy.
+# Indirect_Predicates' own CMakeLists builds a test executable we do not want.
+#
+# These declarations must stay IDENTICAL to VolumeRemesher's (its root CMakeLists.txt).
+# FetchContent keeps the first declaration it sees and silently ignores later ones, so in a
+# downstream that uses both -- wildmeshing-toolkit does -- whichever is declared first
+# decides the version for everyone. Identical declarations make that harmless; differing
+# ones make the include order load-bearing and mean one of the two projects is built and
+# tested against predicates it does not get in production.
+#
+# Currently the wildmeshing fork: upstream 797c07c plus one fix, while
+# MarcoAttene/Indirect_Predicates#15 is open. LNC/BPT/TBC reported a homogeneous
+# denominator whose sign the interval filter could not decide as usable (getIntervalLambda
+# returned an unconditional true, and the constructor never normalized), where SSI/LPI/TPI
+# do both. The indirect predicates return sgn(det) of a determinant scaled by that
+# denominator, so the answer came back as the true orientation times an unknown sign.
 include(FetchContent)
 FetchContent_Declare(nfg
     GIT_REPOSITORY https://github.com/MarcoAttene/nfg.git
@@ -29,8 +41,8 @@ FetchContent_Declare(nfg
     SOURCE_SUBDIR do-not-configure
 )
 FetchContent_Declare(indirect_predicates
-    GIT_REPOSITORY https://github.com/MarcoAttene/Indirect_Predicates.git
-    GIT_TAG 8d354b9affed68332d99c2a361e240543e0dba45
+    GIT_REPOSITORY https://github.com/wildmeshing/Indirect_Predicates.git
+    GIT_TAG 013c7c1c3315c8dd56cbf32dce7bc3041e778372
     SOURCE_SUBDIR do-not-configure
 )
 FetchContent_MakeAvailable(nfg indirect_predicates)
