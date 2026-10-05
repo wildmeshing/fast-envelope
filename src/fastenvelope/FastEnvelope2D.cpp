@@ -130,7 +130,7 @@ bool FastEnvelope2D::contains(const EdgeEnvelope& envelope, const Vector2& point
     return true;
 }
 
-bool FastEnvelope2D::contains(const EdgeEnvelope& envelope, const genericPoint& point)
+bool FastEnvelope2D::contains(const EdgeEnvelope& envelope, const IPs::genericPoint& point)
 {
     for (const HalfPlane& halfplane : envelope.halfplanes) {
         const explicitPoint2D line0(halfplane[0][0], halfplane[0][1]);

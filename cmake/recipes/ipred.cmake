@@ -28,21 +28,20 @@ message(STATUS "Third-party: creating target 'indirectPredicates'")
 # ones make the include order load-bearing and mean one of the two projects is built and
 # tested against predicates it does not get in production.
 #
-# Currently the wildmeshing fork: upstream 797c07c plus one fix, while
-# MarcoAttene/Indirect_Predicates#15 is open. LNC/BPT/TBC reported a homogeneous
-# denominator whose sign the interval filter could not decide as usable (getIntervalLambda
-# returned an unconditional true, and the constructor never normalized), where SSI/LPI/TPI
-# do both. The indirect predicates return sgn(det) of a determinant scaled by that
-# denominator, so the answer came back as the true orientation times an unknown sign.
+# Currently the pins of VolumeRemesher 75a70dc. Both are upstream again: the one fix the
+# wildmeshing fork of Indirect_Predicates carried (LNC/BPT/TBC reporting an undecided
+# denominator sign as usable) is MarcoAttene/Indirect_Predicates#15, merged. Both libraries
+# now define everything inside namespaces -- NFG and IPs -- which is what the using-directives
+# in indirectPredicates/ip_filtered.h are for.
 include(FetchContent)
 FetchContent_Declare(nfg
     GIT_REPOSITORY https://github.com/MarcoAttene/nfg.git
-    GIT_TAG f1df171345e91eeccea3c8b1e3f703a9fe27fca3
+    GIT_TAG ecd60a840daabc2365e37cc47ee4634cbd0c0032
     SOURCE_SUBDIR do-not-configure
 )
 FetchContent_Declare(indirect_predicates
-    GIT_REPOSITORY https://github.com/wildmeshing/Indirect_Predicates.git
-    GIT_TAG 013c7c1c3315c8dd56cbf32dce7bc3041e778372
+    GIT_REPOSITORY https://github.com/MarcoAttene/Indirect_Predicates.git
+    GIT_TAG a5cb2c4e6a2e8ae137f23ffcee91d113e8f3a1c0
     SOURCE_SUBDIR do-not-configure
 )
 FetchContent_MakeAvailable(nfg indirect_predicates)
