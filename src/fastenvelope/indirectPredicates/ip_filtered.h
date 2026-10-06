@@ -29,8 +29,16 @@
 //   - POSITIVE / NEGATIVE / UNCERTAIN are no longer their own enum. Indirect_Predicates
 //     ships the same values (1, -1, 0) as `IP_Sign` / `Filtered_Sign`, and declaring them
 //     twice collides, so `Filtered_Orientation` is now an alias for those.
+//
+//   - Upstream now defines everything inside namespaces: the number types in `NFG`, the
+//     points and predicates in `IPs`. Both are pulled in wholesale below. This header is
+//     included only by FastEnvelope's own .cpp files, never by a public header, so the
+//     using-directives do not reach downstream code.
 
 #include <implicit_point.h>
+
+using namespace IPs;
+using namespace NFG;
 
 #include <math.h>
 

@@ -8,6 +8,9 @@
 
 #include <implicit_point.h>
 
+// Upstream defines its number types in namespace NFG (see ip_filtered.h).
+using namespace NFG;
+
 #include <math.h>
 
 int triangle_normal_filtered(double ov1x, double ov1y, double ov1z, double ov2x, double ov2y, double ov2z, double ov3x, double ov3y, double ov3z)

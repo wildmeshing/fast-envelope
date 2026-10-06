@@ -6,7 +6,9 @@
 #include <array>
 #include <vector>
 
+namespace IPs {
 class genericPoint;
+}
 
 namespace fastEnvelope {
 
@@ -46,7 +48,7 @@ private:
     static EdgeEnvelope
     make_edge_envelope(const Vector2& point0, const Vector2& point1, Scalar epsilon);
     static bool contains(const EdgeEnvelope& envelope, const Vector2& point);
-    static bool contains(const EdgeEnvelope& envelope, const genericPoint& point);
+    static bool contains(const EdgeEnvelope& envelope, const IPs::genericPoint& point);
 
     AABB tree_;
     std::vector<EdgeEnvelope> envelopes_;
