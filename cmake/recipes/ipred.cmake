@@ -28,15 +28,19 @@ message(STATUS "Third-party: creating target 'indirectPredicates'")
 # ones make the include order load-bearing and mean one of the two projects is built and
 # tested against predicates it does not get in production.
 #
-# Currently the pins of VolumeRemesher 75a70dc. Both are upstream again: the one fix the
-# wildmeshing fork of Indirect_Predicates carried (LNC/BPT/TBC reporting an undecided
-# denominator sign as usable) is MarcoAttene/Indirect_Predicates#15, merged. Both libraries
-# now define everything inside namespaces -- NFG and IPs -- which is what the using-directives
-# in indirectPredicates/ip_filtered.h are for.
+# Currently the pins of VolumeRemesher since its PR #28, both upstream's latest. NFG 9b7635a
+# includes MarcoAttene/NFG#4, which counts _M_X64 as SSE2: before it, MSVC files built
+# without /arch:AVX2 (this library's, in a downstream that strips the flag) compiled the
+# scalar interval_number layout while VolumeRemesher's compiled the SIMD one, and the two
+# store the same bounds in opposite order. The one fix the wildmeshing fork of
+# Indirect_Predicates carried (LNC/BPT/TBC reporting an undecided denominator sign as usable)
+# is MarcoAttene/Indirect_Predicates#15, merged. Both libraries define everything inside
+# namespaces -- NFG and IPs -- which is what the using-directives in
+# indirectPredicates/ip_filtered.h are for.
 include(FetchContent)
 FetchContent_Declare(nfg
     GIT_REPOSITORY https://github.com/MarcoAttene/nfg.git
-    GIT_TAG ecd60a840daabc2365e37cc47ee4634cbd0c0032
+    GIT_TAG 9b7635a044a71bdd3167274b64a72e9a44ca9319
     SOURCE_SUBDIR do-not-configure
 )
 FetchContent_Declare(indirect_predicates
