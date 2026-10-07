@@ -38,9 +38,13 @@ message(STATUS "Third-party: creating target 'indirectPredicates'")
 # namespaces -- NFG and IPs -- which is what the using-directives in
 # indirectPredicates/ip_filtered.h are for.
 include(FetchContent)
+# NFG comes from wildmeshing/NFG#1 (05f99ea) for now, on top of 9b7635a: it adds
+# bignatural::trimMemoryPool(), which lets a caller return what the thread-local bignatural
+# pool grew into during an exact computation. VolumeRemesher pins the same commit (its #30);
+# back to MarcoAttene/NFG once the change is merged there.
 FetchContent_Declare(nfg
-    GIT_REPOSITORY https://github.com/MarcoAttene/nfg.git
-    GIT_TAG 9b7635a044a71bdd3167274b64a72e9a44ca9319
+    GIT_REPOSITORY https://github.com/wildmeshing/NFG.git
+    GIT_TAG 05f99ea5584d8ba180ea35f878b0c02f2f888fd6
     SOURCE_SUBDIR do-not-configure
 )
 FetchContent_Declare(indirect_predicates
