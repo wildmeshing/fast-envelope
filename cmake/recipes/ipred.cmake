@@ -28,23 +28,22 @@ message(STATUS "Third-party: creating target 'indirectPredicates'")
 # ones make the include order load-bearing and mean one of the two projects is built and
 # tested against predicates it does not get in production.
 #
-# Currently the pins of VolumeRemesher since its PR #28, both upstream's latest. NFG 9b7635a
+# Currently the pins of VolumeRemesher since its PR #35, both upstream's main. NFG aeec975
 # includes MarcoAttene/NFG#4, which counts _M_X64 as SSE2: before it, MSVC files built
 # without /arch:AVX2 (this library's, in a downstream that strips the flag) compiled the
 # scalar interval_number layout while VolumeRemesher's compiled the SIMD one, and the two
-# store the same bounds in opposite order. The one fix the wildmeshing fork of
+# store the same bounds in opposite order. It also carries #5 (bignatural::trimMemoryPool(),
+# which lets a caller return what the thread-local bignatural pool grew into during an exact
+# computation), #6 (ip_error exits with a failure status) and #7 (ip_error throws instead
+# when NFG_IP_ERROR_THROWS is defined). The one fix the wildmeshing fork of
 # Indirect_Predicates carried (LNC/BPT/TBC reporting an undecided denominator sign as usable)
 # is MarcoAttene/Indirect_Predicates#15, merged. Both libraries define everything inside
 # namespaces -- NFG and IPs -- which is what the using-directives in
 # indirectPredicates/ip_filtered.h are for.
 include(FetchContent)
-# NFG comes from wildmeshing/NFG#1 (05f99ea) for now, on top of 9b7635a: it adds
-# bignatural::trimMemoryPool(), which lets a caller return what the thread-local bignatural
-# pool grew into during an exact computation. VolumeRemesher pins the same commit (its #30);
-# back to MarcoAttene/NFG once the change is merged there.
 FetchContent_Declare(nfg
-    GIT_REPOSITORY https://github.com/wildmeshing/NFG.git
-    GIT_TAG 05f99ea5584d8ba180ea35f878b0c02f2f888fd6
+    GIT_REPOSITORY https://github.com/MarcoAttene/NFG.git
+    GIT_TAG aeec97547a67dc6904ab84b39b15d20c6d62f65a
     SOURCE_SUBDIR do-not-configure
 )
 FetchContent_Declare(indirect_predicates
