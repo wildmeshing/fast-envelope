@@ -7,8 +7,15 @@
 #endif
 #include "common_algorithms.h"
 
+#include <algorithm>
+#include <array>
+#include <atomic>
 #include <cassert>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <fstream>
+#include <vector>
 
 
 #ifdef FAST_ENVELOPE_USE_TIMER
