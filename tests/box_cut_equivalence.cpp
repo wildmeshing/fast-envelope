@@ -136,17 +136,54 @@ static bool new_cut(const Cache& tc, const V3& bmin, const V3& bmax)
     return true;
 }
 
+// ---- ONE-CORNER structure (verbatim from AABB.cpp after the single-corner test) ----
+// AABB.cpp's orient_2d has the opposite sign to this file's (see common_algorithms.h), and the
+// corner it picks depends on that sign, so this mirrors the library's convention exactly.
+static inline int lib_orient_2d(const V2& p1, const V2& p2, const V2& p3)
+{
+    return -orient_2d(p1, p2, p3);
+}
+static bool one_corner_cut(const Cache& tc, const V3& bmin, const V3& bmax)
+{
+    if (!box_box(tc.tmin, tc.tmax, bmin, bmax)) return false;
+    for (int i = 0; i < 3; i++) {
+        const std::array<V2, 3>& tri = tc.tri2d[i];
+        const V2 lo = to_2d(bmin, i);
+        const V2 hi = to_2d(bmax, i);
+        for (int j = 0; j < 3; j++) {
+            const int ori = -tc.ori[i][j]; // in the library's convention
+            if (ori == 0) continue;
+            const V2& a = tri[j % 3];
+            const V2& b = tri[(j + 1) % 3];
+            const double ex = b.x - a.x, ey = b.y - a.y;
+            const bool ori_negative = ori < 0;
+            V2 c;
+            c.x = (ori_negative ? (ey < 0) : (ey > 0)) ? hi.x : lo.x;
+            c.y = (ori_negative ? (ex > 0) : (ex < 0)) ? hi.y : lo.y;
+            if (ori * lib_orient_2d(c, a, b) <= 0) return false;
+        }
+    }
+    return true;
+}
+
 TEST_CASE("box cut equivalence", "[equivalence]")
 {
     std::mt19937_64 rng(0xC0FFEE);
-    auto run = [&](bool ints, long n) -> long {
+    // regime 0: small integers; 1: doubles in [-3, 3]; 2: multiples of 2^-10 in [-3, 3]. In 0 and
+    // 2 this file's orient_2d is exact, which the one-corner argument needs (the library's
+    // ::orient2d is exact everywhere); in 1 only the hoist is compared.
+    auto run = [&](int regime, long n) -> long {
+        const bool ints = regime == 0;
+        const bool exact = regime != 1;
         long mismatch = 0, trues = 0;
         std::uniform_int_distribution<int> di(-6, 6);
+        std::uniform_int_distribution<int> dd(-3072, 3072);
         std::uniform_real_distribution<double> dr(-3, 3);
         for (long k = 0; k < n; k++) {
             V3 t0, t1, t2, ba, bb, bmin, bmax;
             auto g = [&](V3& p) {
-                for (int c = 0; c < 3; c++) p.v[c] = ints ? (double)di(rng) : dr(rng);
+                for (int c = 0; c < 3; c++)
+                    p.v[c] = ints ? (double)di(rng) : exact ? dd(rng) / 1024.0 : dr(rng);
             };
             g(t0);
             g(t1);
@@ -157,24 +194,33 @@ TEST_CASE("box cut equivalence", "[equivalence]")
                 bmin.v[c] = std::min(ba.v[c], bb.v[c]);
                 bmax.v[c] = std::max(ba.v[c], bb.v[c]);
             }
+            const Cache tc = build(t0, t1, t2);
             bool a = old_cut(t0, t1, t2, bmin, bmax);
-            bool b = new_cut(build(t0, t1, t2), bmin, bmax);
+            bool b = new_cut(tc, bmin, bmax);
             if (a != b) {
-                if (++mismatch <= 5) printf("MISMATCH ints=%d old=%d new=%d\n", ints, a, b);
+                if (++mismatch <= 5) printf("MISMATCH regime=%d old=%d new=%d\n", regime, a, b);
+            }
+            if (exact) {
+                bool c = one_corner_cut(tc, bmin, bmax);
+                if (a != c) {
+                    if (++mismatch <= 5)
+                        printf("MISMATCH regime=%d old=%d one-corner=%d\n", regime, a, c);
+                }
             }
             if (a) trues++;
         }
         printf(
-            "regime ints=%d: n=%ld mismatches=%ld (accept-rate=%.1f%%)\n",
-            ints,
+            "regime %d: n=%ld mismatches=%ld (accept-rate=%.1f%%)\n",
+            regime,
             n,
             mismatch,
             100.0 * trues / n);
         return mismatch;
     };
     long m = 0;
-    m += run(true, 2000000);
-    m += run(false, 2000000);
+    m += run(0, 2000000);
+    m += run(1, 2000000);
+    m += run(2, 2000000);
     printf(m == 0 ? "ALL EQUIVALENT\n" : "FAILED: %ld mismatches\n", m);
     REQUIRE(m == 0);
     // return m == 0 ? 0 : 1;

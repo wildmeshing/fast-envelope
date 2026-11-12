@@ -49,16 +49,6 @@ void get_seg_corners(const Vector3& edge0, const Vector3& edge1, Vector3& mint, 
     maxt[2] = std::max(edge0[2], edge1[2]);
 }
 
-bool box_box_intersection(
-    const Vector3& min1,
-    const Vector3& max1,
-    const Vector3& min2,
-    const Vector3& max2) // TDOO
-{
-    if (max1[0] < min2[0] || max1[1] < min2[1] || max1[2] < min2[2]) return 0;
-    if (max2[0] < min1[0] || max2[1] < min1[1] || max2[2] < min1[2]) return 0;
-    return 1;
-}
 Vector2 to_2d(const Vector3& p, int t)
 
 {
@@ -538,39 +528,6 @@ void halfspace_generation(
         }
     }
 }
-
-// These two do NOT share a handedness, and the asymmetry is not a mistake -- it is what makes
-// each of them reproduce the Shewchuk-convention predicate it replaced.
-//
-// Indirect_Predicates orients from the FIRST argument: orient2D(a,b,c) is sign((b-a) x (c-a))
-// and orient3D(a,b,c,d) is sign det[b-a, c-a, d-a]. Shewchuk orients from the LAST. In 3D that
-// relabelling is an odd permutation, so the negation below lands exactly on Shewchuk's sign;
-// in 2D it is an even permutation, so orient2D already agrees with Shewchuk and the negation
-// makes this function its opposite.
-//
-// Net effect: orient_3d(p0,p1,p2,p3) is positive when p3 is below the plane <p0,p1,p2>, and
-// orient_2d(p0,p1,p2) is NEGATIVE when p2 is to the left of p0->p1. Every current caller is
-// invariant to a uniform sign flip -- is_triangle_cut_bounding_box compares ori * o_corner,
-// is_segment_cut_bounding_box asks only whether all corners agree, is_triangle_degenerated
-// tests against zero -- and FastEnvelope2D::contains is written against the convention stated
-// here. New code comparing either result to an absolute sign should re-read this comment.
-int orient_2d(const Vector2& p0, const Vector2& p1, const Vector2& p2)
-{
-    const explicitPoint2D a(p0[0], p0[1]);
-    const explicitPoint2D b(p1[0], p1[1]);
-    const explicitPoint2D c(p2[0], p2[1]);
-    return -genericPoint::orient2D(a, b, c);
-}
-
-int orient_3d(const Vector3& p0, const Vector3& p1, const Vector3& p2, const Vector3& p3)
-{
-    const explicitPoint3D a(p0[0], p0[1], p0[2]);
-    const explicitPoint3D b(p1[0], p1[1], p1[2]);
-    const explicitPoint3D c(p2[0], p2[1], p2[2]);
-    const explicitPoint3D d(p3[0], p3[1], p3[2]);
-    return -genericPoint::orient3D(a, b, c, d);
-}
-
 
 // this function provide an algorithm build halfspaces for a list of triangles. each prism has 7-8
 // facets

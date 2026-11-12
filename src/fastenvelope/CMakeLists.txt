@@ -10,6 +10,7 @@ set(SOURCES
         Types.hpp
         common_algorithms.cpp
         common_algorithms.h
+        FacetRec.h
 
         indirectPredicates/ip_filtered_ex.h
         indirectPredicates/ip_filtered_ex.cpp
