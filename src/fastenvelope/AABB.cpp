@@ -46,7 +46,13 @@ void AABB::triangle_search_bbd_recursive(
     assert(e != b);
 
     assert(n < boxlist.size());
-    bool cut = is_triangle_cut_bounding_box(tc, n);
+    // The projected separating-line test is monotone under box inclusion (a line that
+    // separates the triangle from a box separates it from every box inside), so internal nodes
+    // need only the box-box test: the leaves reported, and their order, are the same.
+    bool cut =
+        (e == b + 1)
+            ? is_triangle_cut_bounding_box(tc, n)
+            : algorithms::box_box_intersection(tc.tmin, tc.tmax, boxlist[n][0], boxlist[n][1]);
 
     if (cut == false) return;
 
@@ -225,29 +231,30 @@ bool AABB::is_triangle_cut_bounding_box(const TriCutCache& tc, int index) const
     // Cheap AABB reject using the precomputed triangle bbox.
     if (!algorithms::box_box_intersection(tc.tmin, tc.tmax, bmin, bmax)) return false;
 
-    std::array<Vector2, 4> mp;
     for (int i = 0; i < 3; i++) {
         // Triangle projection for this axis is precomputed (box-independent).
         const std::array<Vector2, 3>& tri = tc.tri2d[i];
-
-        mp[0] = algorithms::to_2d(bmin, i);
-        mp[1] = algorithms::to_2d(bmax, i);
-        mp[2][0] = mp[0][0];
-        mp[2][1] = mp[1][1];
-        mp[3][0] = mp[1][0];
-        mp[3][1] = mp[0][1];
+        const Vector2 lo = algorithms::to_2d(bmin, i);
+        const Vector2 hi = algorithms::to_2d(bmax, i);
 
         for (int j = 0; j < 3; j++) {
             // The triangle-only edge sign is precomputed (box-independent); when it is
-            // zero the original code skipped this edge, so skip before touching the box
-            // corners (also saves the four box orient_2d calls in that case).
+            // zero the original code skipped this edge, so skip before touching the box.
             const int ori = tc.ori[i][j];
             if (ori == 0) continue;
-            const int o0 = algorithms::orient_2d(mp[0], tri[j % 3], tri[(j + 1) % 3]);
-            const int o1 = algorithms::orient_2d(mp[1], tri[j % 3], tri[(j + 1) % 3]);
-            const int o2 = algorithms::orient_2d(mp[2], tri[j % 3], tri[(j + 1) % 3]);
-            const int o3 = algorithms::orient_2d(mp[3], tri[j % 3], tri[(j + 1) % 3]);
-            if (ori * o0 <= 0 && ori * o1 <= 0 && ori * o2 <= 0 && ori * o3 <= 0) return false;
+            // The box is separated by this edge's line iff every one of its four corners c has
+            // ori * orient_2d(c, a, b) <= 0. orient_2d(c, a, b) is the sign of a function of c
+            // that is affine, so over the box it is largest at one corner, picked by the signs
+            // of the edge's components -- exact, since rounding never flips the sign of a
+            // difference. Testing that corner gives the four-corner answer with one predicate.
+            const Vector2& a = tri[j % 3];
+            const Vector2& b = tri[(j + 1) % 3];
+            const Scalar ex = b[0] - a[0], ey = b[1] - a[1];
+            const bool ori_negative = ori < 0;
+            Vector2 c;
+            c[0] = (ori_negative ? (ey < 0) : (ey > 0)) ? hi[0] : lo[0];
+            c[1] = (ori_negative ? (ex > 0) : (ex < 0)) ? hi[1] : lo[1];
+            if (ori * algorithms::orient_2d(c, a, b) <= 0) return false;
         }
     }
 

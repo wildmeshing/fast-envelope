@@ -207,6 +207,17 @@ public:
 
     // Tier 2 state, built on demand -- see LPI_filtered_suppvars.
     double pv[9], pw[9], pu[9];
+    // The operands by address instead of a 27-double copy: they outlive the query.
+    const double* opv = nullptr;
+    const double* opw = nullptr;
+    const double* opu = nullptr;
+    void set_operand_ptrs(const double* v, const double* w, const double* u)
+    {
+        opv = v;
+        opw = w;
+        opu = u;
+        pt.reset();
+    }
     mutable explicitPoint3D ev1, ev2, ev3, ew1, ew2, ew3, eu1, eu2, eu3;
     mutable std::optional<implicitPoint3D_TPI> pt;
 
@@ -243,6 +254,7 @@ public:
         double u3y,
         double u3z)
     {
+        opv = opw = opu = nullptr;
         pv[0] = v1x;
         pv[1] = v1y;
         pv[2] = v1z;
@@ -276,15 +288,18 @@ public:
     const implicitPoint3D_TPI& implicit() const
     {
         if (!pt) {
-            ev1 = explicitPoint3D(pv[0], pv[1], pv[2]);
-            ev2 = explicitPoint3D(pv[3], pv[4], pv[5]);
-            ev3 = explicitPoint3D(pv[6], pv[7], pv[8]);
-            ew1 = explicitPoint3D(pw[0], pw[1], pw[2]);
-            ew2 = explicitPoint3D(pw[3], pw[4], pw[5]);
-            ew3 = explicitPoint3D(pw[6], pw[7], pw[8]);
-            eu1 = explicitPoint3D(pu[0], pu[1], pu[2]);
-            eu2 = explicitPoint3D(pu[3], pu[4], pu[5]);
-            eu3 = explicitPoint3D(pu[6], pu[7], pu[8]);
+            const double* V = opv ? opv : pv;
+            const double* W = opw ? opw : pw;
+            const double* U = opu ? opu : pu;
+            ev1 = explicitPoint3D(V[0], V[1], V[2]);
+            ev2 = explicitPoint3D(V[3], V[4], V[5]);
+            ev3 = explicitPoint3D(V[6], V[7], V[8]);
+            ew1 = explicitPoint3D(W[0], W[1], W[2]);
+            ew2 = explicitPoint3D(W[3], W[4], W[5]);
+            ew3 = explicitPoint3D(W[6], W[7], W[8]);
+            eu1 = explicitPoint3D(U[0], U[1], U[2]);
+            eu2 = explicitPoint3D(U[3], U[4], U[5]);
+            eu3 = explicitPoint3D(U[6], U[7], U[8]);
             pt.emplace(ev1, ev2, ev3, ew1, ew2, ew3, eu1, eu2, eu3);
         }
         return *pt;
@@ -1148,6 +1163,232 @@ inline int orient3D_TPI_exact(
             svs))
         return IP_Sign::ZERO;
     return orient3D_TPI_post_exact(svs, q1x, q1y, q1z, q2x, q2y, q2z, q3x, q3y, q3z);
+}
+
+
+// ---------------------------------------------------------------------------
+// The same tier-1 filters, with every sub-expression that depends on one plane
+// only computed once per plane instead of once per predicate. Each cached value is the
+// identical expression of the identical doubles, so d, n, det and the error bounds come out
+// bit-for-bit as in the functions above, and so does every decision.
+// ---------------------------------------------------------------------------
+#include "../FacetRec.h"
+
+// p: the plane's three points (9 doubles) in the order the predicates receive them.
+inline void make_facet_rec(const double* p, FacetRec& r)
+{
+    // As (q1,q2,q3) of orient3D_TPI_postfilter and (a,b,c) of orient3D_LPI_postfilter.
+    double a21 = p[0] - p[6];
+    double a22 = p[1] - p[7];
+    double a23 = p[2] - p[8];
+    double a31 = p[3] - p[6];
+    double a32 = p[4] - p[7];
+    double a33 = p[5] - p[8];
+    r.tc[0] = a22 * a33 - a23 * a32;
+    r.tc[1] = a21 * a33 - a23 * a31;
+    r.tc[2] = a21 * a32 - a22 * a31;
+    double d2233 = a22 * a33;
+    double d2332 = a23 * a32;
+    double d2133 = a21 * a33;
+    double d2331 = a23 * a31;
+    double d2132 = a21 * a32;
+    double d2231 = a22 * a31;
+    r.lc[0] = d2233 - d2332;
+    r.lc[1] = d2133 - d2331;
+    r.lc[2] = d2132 - d2231;
+    double f21 = fabs(a21), f31 = fabs(a31), f22 = fabs(a22), f32 = fabs(a32), f23 = fabs(a23),
+           f33 = fabs(a33);
+    r.mx = f21 < f31 ? f31 : f21;
+    r.my = f22 < f32 ? f32 : f22;
+    r.mz = f23 < f33 ? f33 : f23;
+    // As the v / w / u plane of orient3D_TPI_prefilter.
+    double w3x = p[6] - p[3];
+    double w3y = p[7] - p[4];
+    double w3z = p[8] - p[5];
+    double w2x = p[3] - p[0];
+    double w2y = p[4] - p[1];
+    double w2z = p[5] - p[2];
+    r.nw[0] = w2y * w3z - w2z * w3y;
+    r.nw[1] = w3x * w2z - w3z * w2x;
+    r.nw[2] = w2x * w3y - w2y * w3x;
+    r.pdot = r.nw[0] * p[0] + r.nw[1] * p[1] + r.nw[2] * p[2];
+    double g2x = fabs(w2x), g3x = fabs(w3x), g2y = fabs(w2y), g3y = fabs(w3y), g2z = fabs(w2z),
+           g3z = fabs(w3z);
+    r.mwx = g2x < g3x ? g3x : g2x;
+    r.mwy = g2y < g3y ? g3y : g2y;
+    r.mwz = g2z < g3z ? g3z : g2z;
+    double m = r.mwx;
+    if (m < r.mwy) m = r.mwy;
+    if (m < r.mwz) m = r.mwz;
+    r.mwall = m;
+}
+
+inline bool orient3D_TPI_prefilter_rec(
+    const FacetRec& V,
+    const FacetRec& W,
+    const FacetRec& U,
+    const double* vp,
+    const double* wp,
+    const double* up,
+    TPI_filtered_suppvars& svs)
+{
+    svs.set_operand_ptrs(vp, wp, up);
+    double &d = svs.d, &n1 = svs.n1, &n2 = svs.n2, &n3 = svs.n3;
+    double &max1 = svs.max1, &max2 = svs.max2, &max3 = svs.max3, &max4 = svs.max4, &max5 = svs.max5,
+           &max6 = svs.max6, &max7 = svs.max7;
+    const double nvx = V.nw[0], nvy = V.nw[1], nvz = V.nw[2];
+    const double nwx = W.nw[0], nwy = W.nw[1], nwz = W.nw[2];
+    const double nux = U.nw[0], nuy = U.nw[1], nuz = U.nw[2];
+
+    double nwyuz = nwy * nuz - nwz * nuy;
+    double nwxuz = nwx * nuz - nwz * nux;
+    double nwxuy = nwx * nuy - nwy * nux;
+
+    d = nvx * nwyuz - nvy * nwxuz + nvz * nwxuy;
+
+    max4 = V.mwy < W.mwy ? W.mwy : V.mwy;
+    max2 = V.mwx < W.mwx ? W.mwx : V.mwx;
+    max5 = V.mwz < W.mwz ? W.mwz : V.mwz;
+    max7 = U.mwx < W.mwx ? W.mwx : U.mwx;
+    double max9 = U.mwy < W.mwy ? W.mwy : U.mwy;
+    double max10 = U.mwz < W.mwz ? W.mwz : U.mwz;
+
+    double deps = 8.8881169117764924e-014 * (((((max4 * max5) * max2) * max10) * max7) * max9);
+    if (!isfinite(d) || (d <= deps && d >= -deps)) return false;
+
+    double nvyuz = nvy * nuz - nvz * nuy;
+    double nvxuz = nvx * nuz - nvz * nux;
+    double nvxuy = nvx * nuy - nvy * nux;
+
+    double nvywz = nvy * nwz - nvz * nwy;
+    double nvxwz = nvx * nwz - nvz * nwx;
+    double nvxwy = nvx * nwy - nvy * nwx;
+
+    const double p1 = V.pdot, p2 = W.pdot, p3 = U.pdot;
+
+    n1 = p1 * nwyuz - p2 * nvyuz + p3 * nvywz;
+    n2 = p2 * nvxuz - p3 * nvxwz - p1 * nwxuz;
+    n3 = p3 * nvxwy - p2 * nvxuy + p1 * nwxuy;
+
+    if (!isfinite(n1) || !isfinite(n2) || !isfinite(n3)) return false;
+
+    if (max4 < U.mwy) max4 = U.mwy;
+    if (max2 < U.mwx) max2 = U.mwx;
+    if (max5 < U.mwz) max5 = U.mwz;
+
+    max1 = max4;
+    if (max1 < max2) max1 = max2;
+    max3 = max5;
+    if (max3 < max4) max3 = max4;
+    max6 = U.mwall < W.mwall ? W.mwall : U.mwall;
+    return true;
+}
+
+// q: the plane's 9 doubles (q1, q2, q3), r: its record.
+inline int
+orient3D_TPI_postfilter_rec(const TPI_filtered_suppvars& svs, const double* q, const FacetRec& r)
+{
+    const double &d = svs.d, &n1 = svs.n1, &n2 = svs.n2, &n3 = svs.n3;
+    const double &max1 = svs.max1, &max2 = svs.max2, &max3 = svs.max3, &max4 = svs.max4,
+                 &max5 = svs.max5, &max6 = svs.max6, &max7 = svs.max7;
+
+    double dq3x = d * q[6];
+    double dq3y = d * q[7];
+    double dq3z = d * q[8];
+
+    double a11 = n1 - dq3x;
+    double a12 = n2 - dq3y;
+    double a13 = n3 - dq3z;
+
+    double det = a11 * r.tc[0] - a12 * r.tc[1] + a13 * r.tc[2];
+    if (!isfinite(det))
+        return ip_interval_tier(
+            svs.implicit(),
+            q[0],
+            q[1],
+            q[2],
+            q[3],
+            q[4],
+            q[5],
+            q[6],
+            q[7],
+            q[8]);
+
+    double nmax7 = max7;
+    if (nmax7 < r.mx) nmax7 = r.mx;
+    double nmax6 = max6;
+    if (nmax6 < r.my) nmax6 = r.my;
+    double max8 = r.my < r.mz ? r.mz : r.my;
+
+    double eps = 3.4025182954957945e-012 *
+                 (((((((max1 * max3) * max2) * max5) * nmax7) * max4) * nmax6) * max8);
+
+    if ((det > eps))
+        return (d > 0) ? (Filtered_Orientation::POSITIVE) : (Filtered_Orientation::NEGATIVE);
+    if ((det < -eps))
+        return (d > 0) ? (Filtered_Orientation::NEGATIVE) : (Filtered_Orientation::POSITIVE);
+    return ip_interval_tier(svs.implicit(), q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7], q[8]);
+}
+
+inline int orient3D_LPI_postfilter_rec(
+    const LPI_filtered_suppvars& svs,
+    const double& px,
+    const double& py,
+    const double& pz,
+    const double* q,
+    const FacetRec& r)
+{
+    const double &a11 = svs.a11, &a12 = svs.a12, &a13 = svs.a13;
+    const double& d = svs.d;
+    const double &fa11 = svs.fa11, &fa12 = svs.fa12, &fa13 = svs.fa13;
+    const double &max1 = svs.max1, &max2 = svs.max2, &max5 = svs.max5;
+    const double cx = q[6], cy = q[7], cz = q[8];
+
+    double px_cx = px - cx;
+    double py_cy = py - cy;
+    double pz_cz = pz - cz;
+
+    double d11 = (d * px_cx) + (a11);
+    double d12 = (d * py_cy) + (a12);
+    double d13 = (d * pz_cz) + (a13);
+
+    double det = d11 * (r.lc[0]) - d12 * (r.lc[1]) + d13 * (r.lc[2]);
+
+    if (!isfinite(det))
+        return ip_interval_tier(
+            svs.implicit(),
+            q[0],
+            q[1],
+            q[2],
+            q[3],
+            q[4],
+            q[5],
+            q[6],
+            q[7],
+            q[8]);
+
+    double fpxcx = fabs(px_cx);
+    double fpycy = fabs(py_cy);
+    double fpzcz = fabs(pz_cz);
+
+    double max3 = fa12;
+    if (max3 < r.my) max3 = r.my;
+    if (max3 < fpycy) max3 = fpycy;
+    double max4 = fa13;
+    if (max4 < fpzcz) max4 = fpzcz;
+    if (max4 < r.mz) max4 = r.mz;
+    double max6 = fa11;
+    if (max6 < r.mx) max6 = r.mx;
+    if (max6 < fpxcx) max6 = fpxcx;
+
+    double eps = 1.3865993466947057e-013 * max1 * max2 * max5 * max6 * max3 * max4;
+
+    if ((det > eps))
+        return (d > 0) ? (Filtered_Orientation::POSITIVE) : (Filtered_Orientation::NEGATIVE);
+    if ((det < -eps))
+        return (d > 0) ? (Filtered_Orientation::NEGATIVE) : (Filtered_Orientation::POSITIVE);
+
+    return ip_interval_tier(svs.implicit(), q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7], q[8]);
 }
 
 #include "ip_filtered_ex.h"

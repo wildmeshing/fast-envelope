@@ -4,11 +4,19 @@
 
 #include <fenv.h>
 #include <array>
+#include <cstdint>
 #include <vector>
 
 #include <iostream>
 
 class TPI_exact_suppvars;
+class TPI_filtered_suppvars;
+struct FacetRec;
+
+// The TPI tests below take an optional `shared_st` / `shared_pre`: the prefilter of their
+// (triangle, facet, facet) point and whether it succeeded, when the caller has already computed it
+// for the same point -- several of them test the same point in a row. `hoisted_n` is the query
+// triangle's off-plane point, passed only when it is off the plane (so no rand() point is drawn).
 
 namespace fastEnvelope {
 
@@ -60,11 +68,17 @@ private:
 
 private:
     AABB tree;
+    uint64_t m_instance = 0; // set by every init(): keys the per-thread facet records
     std::vector<Vector3> m_ver_p;
     std::vector<Vector3i> m_faces_p;
     std::vector<std::array<Vector3, 2>> cornerlist;
     std::vector<std::vector<std::array<Vector3, 3>>> halfspace;
     bool USE_ADJACENT_INFORMATION = true;
+
+    // Per-thread facet records, filled lazily during one query (see FastEnvelope.cpp).
+    void assign_instance();
+    void begin_query(const std::vector<unsigned int>& prismindex) const;
+    const FacetRec* facet_records(int prism) const;
 
     bool debugcode(
         const std::array<Vector3, 3>& triangle,
@@ -202,7 +216,9 @@ private:
         const std::vector<bool>& coverlist,
         const int& jump1,
         const int& jump2,
-        int& id) const;
+        int& id,
+        const TPI_filtered_suppvars* shared_st = nullptr,
+        int shared_pre = 0) const;
 
     int Implicit_Tri_Facet_Facet_interpoint_Out_Prism_return_local_id_with_face_order(
         const std::array<Vector3, 3>& triangle,
@@ -216,7 +232,9 @@ private:
         const std::vector<std::vector<int>>& intersect_face,
         const int& jump1,
         const int& jump2,
-        int& id) const;
+        int& id,
+        const TPI_filtered_suppvars* shared_st = nullptr,
+        int shared_pre = 0) const;
 
 #ifdef ENVELOPE_WITH_GMP
     int Implicit_Tri_Facet_Facet_interpoint_Out_Prism_return_local_id_with_face_order_Rational(
@@ -244,7 +262,10 @@ private:
         const Vector3& facet12,
         const Vector3& facet20,
         const Vector3& facet21,
-        const Vector3& facet22);
+        const Vector3& facet22,
+        const TPI_filtered_suppvars* shared_st = nullptr,
+        int shared_pre = 0,
+        const Vector3* hoisted_n = nullptr);
     bool is_tpp_on_polyhedra(
         const std::array<Vector3, 3>& triangle,
         const Vector3& facet10,
@@ -254,7 +275,9 @@ private:
         const Vector3& facet21,
         const Vector3& facet22,
         const int& prismid,
-        const int& faceid) const;
+        const int& faceid,
+        const TPI_filtered_suppvars* shared_st = nullptr,
+        int shared_pre = 0) const;
 
     bool point_out_prism(
         const Vector3& point,
