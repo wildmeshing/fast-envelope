@@ -6,6 +6,7 @@
 #include "Rational.hpp"
 #endif
 #include "common_algorithms.h"
+#include "orient_predicates.h"
 
 #include <algorithm>
 #include <array>
@@ -15,6 +16,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
 
@@ -51,6 +54,14 @@ std::atomic<uint64_t> g_next_instance{1};
     std::abort();
 }
 
+[[noreturn]] void query_triangle_misuse()
+{
+    // is_triangle_cut_envelope_polyhedra called outside triangle_out_of_envelope, which sets up
+    // the query triangle it tests against: it would test the previous query's triangle.
+    std::fprintf(stderr, "fast-envelope: query triangle used outside its query\n");
+    std::abort();
+}
+
 // The query triangle of the triangle_out_of_envelope in progress: its record as a TPI plane, and
 // the off-plane point n and the three planes through n and an edge that is_3_triangle_cut and the
 // cut test in is_triangle_cut_envelope_polyhedra evaluate for every pair of facets.
@@ -74,9 +85,12 @@ struct QueryTriangleScope
     ~QueryTriangleScope() { t_query_triangle.valid = false; }
 };
 
+// The most facets a prism may have. The prisms halfspace_generation builds have at most 8 (6 for
+// the degenerate box); the rest is headroom for the halfspaces a caller passes to init, which
+// init checks against it.
+constexpr int kMaxFacets = 16;
 // is_triangle_cut_envelope_polyhedra's vertex-vs-facet orientations from its last call that went
 // through the whole facet loop, and triangle_out_of_envelope's copy of them per filtered prism.
-constexpr int kMaxFacets = 16;
 thread_local int8_t t_last_orientations[3][kMaxFacets];
 thread_local std::vector<std::array<int8_t, 3 * kMaxFacets>> t_prism_orientations;
 
@@ -97,6 +111,8 @@ namespace fastEnvelope {
 void FastEnvelope::assign_instance()
 {
     m_instance = g_next_instance++;
+    // An internal check: generated prisms have at most 8 facets, and init rejects larger
+    // caller-supplied ones before it gets here.
     for (const auto& prism : halfspace) {
         if (prism.size() > kMaxFacets) {
             std::fprintf(stderr, "fast-envelope: a prism with %zu facets\n", prism.size());
@@ -292,6 +308,15 @@ void FastEnvelope::init(
     const Scalar eps)
 {
     std::vector<Vector3i> faces_new;
+
+    // The per-prism scratch of the queries holds kMaxFacets facets.
+    for (const auto& prism : halfspace_input) {
+        if (prism.size() > kMaxFacets) {
+            throw std::invalid_argument(
+                "FastEnvelope::init: a prism with " + std::to_string(prism.size()) +
+                " facets; at most " + std::to_string(kMaxFacets) + " are supported");
+        }
+    }
 
     halfspace = halfspace_input;
     cornerlist = cornerlist_input;
@@ -4170,10 +4195,13 @@ int FastEnvelope::is_triangle_cut_envelope_polyhedra(
     std::vector<int>& cid) const
 {
     FACET_RECORD_MEMO;
+    // The TPI tests below read the query triangle's records from t_query_triangle, which only
+    // triangle_out_of_envelope sets up (and tri0, tri1, tri2 are that triangle).
+    if (!t_query_triangle.valid) query_triangle_misuse();
     cid.clear();
     cid.reserve(3);
-    // Prisms have at most 8 facets (6 for the degenerate box; assign_instance checks the
-    // bound): fixed-size scratch instead of five heap allocations per candidate prism.
+    // Prisms have at most kMaxFacets facets (init checks the bound): fixed-size scratch instead
+    // of five heap allocations per candidate prism.
     assert(halfspace[cindex].size() <= kMaxFacets);
     std::array<bool, kMaxFacets> cut;
     cut.fill(false);
@@ -4337,7 +4365,7 @@ int FastEnvelope::is_triangle_cut_envelope_polyhedra(
             // original recomputes from the same 27 doubles right after -- lands in st.
             int inter;
             {
-                const bool hoisted = t_query_triangle.valid && t_query_triangle.n_off_plane;
+                const bool hoisted = t_query_triangle.n_off_plane;
                 Vector3 n;
                 if (!hoisted) {
                     n = (tri0 - tri1).cross(tri0 - tri2) + tri0;

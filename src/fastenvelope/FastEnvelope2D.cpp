@@ -2,6 +2,7 @@
 
 #include "common_algorithms.h"
 #include "indirectPredicates/ip_filtered.h"
+#include "orient_predicates.h"
 
 #include <algorithm>
 #include <cassert>

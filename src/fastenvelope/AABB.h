@@ -77,42 +77,12 @@ private:
 public:
     void init(const std::vector<std::array<Vector3, 2>>& cornerlist);
     bool is_initialized = false;
-    inline void triangle_find_bbox(
+    // Out of line (AABB.cpp): it needs orient_2d, whose header must stay out of this one.
+    void triangle_find_bbox(
         const Vector3& triangle0,
         const Vector3& triangle1,
         const Vector3& triangle2,
-        std::vector<unsigned int>& list) const
-    {
-        assert(n_corners >= 0);
-        assert(boxlist.size() > 0);
-        int de = algorithms::is_triangle_degenerated(triangle0, triangle1, triangle2);
-        if (de == DEGENERATED_SEGMENT) {
-            Vector3 tmin, tmax;
-            algorithms::get_tri_corners(triangle0, triangle1, triangle2, tmin, tmax);
-            segment_find_bbox(tmin, tmax, list);
-            return;
-        } else if (de == DEGENERATED_POINT) {
-            point_find_bbox(triangle0, list);
-            return;
-        }
-
-        // Precompute the query-triangle-invariant data once, then reuse it at
-        // every AABB node instead of recomputing it in is_triangle_cut_bounding_box.
-        TriCutCache tc;
-        algorithms::get_tri_corners(triangle0, triangle1, triangle2, tc.tmin, tc.tmax);
-        for (int i = 0; i < 3; i++) {
-            tc.tri2d[i][0] = algorithms::to_2d(triangle0, i);
-            tc.tri2d[i][1] = algorithms::to_2d(triangle1, i);
-            tc.tri2d[i][2] = algorithms::to_2d(triangle2, i);
-            for (int j = 0; j < 3; j++) {
-                tc.ori[i][j] = algorithms::orient_2d(
-                    tc.tri2d[i][(j + 2) % 3],
-                    tc.tri2d[i][j % 3],
-                    tc.tri2d[i][(j + 1) % 3]);
-            }
-        }
-        triangle_search_bbd_recursive(tc, list, 1, 0, n_corners);
-    }
+        std::vector<unsigned int>& list) const;
 
     inline void point_find_bbox(const Vector3& p, std::vector<unsigned int>& list) const
     {

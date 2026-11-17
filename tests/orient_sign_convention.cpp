@@ -26,6 +26,7 @@
 
 #include <fastenvelope/common_algorithms.h>
 #include <fastenvelope/indirectPredicates/ip_filtered.h>
+#include <fastenvelope/orient_predicates.h>
 
 static int failures = 0;
 
