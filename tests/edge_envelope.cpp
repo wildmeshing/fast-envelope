@@ -1,5 +1,6 @@
 #include <fastenvelope/FastEnvelope.h>
 #include <fastenvelope/common_algorithms.h>
+#include <fastenvelope/orient_predicates.h>
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>

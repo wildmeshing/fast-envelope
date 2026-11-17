@@ -2,6 +2,7 @@
 
 #include "Morton.h"
 #include "indirectPredicates/ip_filtered.h"
+#include "orient_predicates.h"
 
 #include <array>
 #include <cmath>
